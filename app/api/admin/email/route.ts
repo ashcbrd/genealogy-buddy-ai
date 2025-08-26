@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendCustomEmail } from "@/lib/email";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const ADMIN_EMAILS = ["admin@genealogyai.com", "support@genealogyai.com"];
 
 export async function POST(req: NextRequest) {
