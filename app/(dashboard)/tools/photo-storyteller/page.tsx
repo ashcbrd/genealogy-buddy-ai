@@ -1,0 +1,787 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { useDropzone } from "react-dropzone";
+import Image from "next/image";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import {
+  Camera,
+  Upload,
+  Loader2,
+  Calendar,
+  MapPin,
+  Users,
+  AlertCircle,
+  Download,
+  Sparkles,
+  Clock,
+  BookOpen,
+  Share2,
+  ArrowLeft,
+  Image as ImageIcon,
+  Info,
+  Eye,
+} from "lucide-react";
+import Link from "next/link";
+import { Footer } from "@/components/footer";
+
+interface PhotoAnalysis {
+  dateEstimate: {
+    period: string;
+    confidence: number;
+    explanation: string;
+  };
+  clothingAnalysis: string;
+  backgroundAnalysis: string;
+  historicalContext: string;
+  story: string;
+  people: Array<{
+    position: string;
+    ageEstimate: string;
+    clothingDescription: string;
+    possibleRole: string;
+  }>;
+  locationClues: string[];
+  suggestions: string[];
+}
+
+export default function PhotoStorytellerPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string>("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<PhotoAnalysis | null>(null);
+  const [error, setError] = useState("");
+  const [description, setDescription] = useState("");
+  const [activeTab, setActiveTab] = useState("story");
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      const selectedFile = acceptedFiles[0];
+      setFile(selectedFile);
+      setError("");
+      setAnalysis(null);
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(selectedFile);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive, fileRejections } =
+    useDropzone({
+      onDrop,
+      accept: {
+        "image/*": [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"],
+      },
+      maxSize: 10 * 1024 * 1024, // 10MB
+      multiple: false,
+    });
+
+  const analyzePhoto = async () => {
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    setError("");
+
+    const formData = new FormData();
+    formData.append("photo", file);
+    if (description.trim()) {
+      formData.append("description", description.trim());
+    }
+
+    try {
+      const res = await fetch("/api/tools/photo/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+
+      setAnalysis(data.analysis);
+      setActiveTab("story");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to analyze photo");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const downloadStory = () => {
+    if (!analysis) return;
+
+    const storyText = `
+Photo Story Analysis
+
+Story:
+${analysis.story}
+
+Historical Context:
+${analysis.historicalContext}
+
+Date Estimate:
+${analysis.dateEstimate.period} (${
+      analysis.dateEstimate.confidence
+    }% confidence)
+${analysis.dateEstimate.explanation}
+
+Clothing Analysis:
+${analysis.clothingAnalysis}
+
+Background Analysis:
+${analysis.backgroundAnalysis}
+
+People Identified:
+${analysis.people
+  .map(
+    (person, i) => `
+${i + 1}. Position: ${person.position}
+   Age Estimate: ${person.ageEstimate}
+   Clothing: ${person.clothingDescription}
+   Possible Role: ${person.possibleRole}
+`
+  )
+  .join("")}
+
+Location Clues:
+${analysis.locationClues.map((clue) => `- ${clue}`).join("\n")}
+
+Research Suggestions:
+${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
+    `;
+
+    const blob = new Blob([storyText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "photo-story-analysis.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
+        {/* Header */}
+        <div className="mb-8 animate-fade-in">
+          <div className="flex items-center gap-4 mb-4">
+            <Button variant="outline" size="sm" className="hover-lift" asChild>
+              <Link href="/tools">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Tools
+              </Link>
+            </Button>
+            <Badge variant="secondary" className="gap-1">
+              <Camera className="h-3.5 w-3.5" />
+              Photo Analysis
+            </Badge>
+          </div>
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center">
+              <Camera className="w-6 h-6 text-orange-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+                Photo Storyteller
+              </h1>
+              <p className="text-lg text-muted-foreground mt-1">
+                Discover the stories hidden in your historical family photos
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <Alert className="mb-6 animate-slide-up">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!analysis ? (
+          <div className="grid gap-8 lg:grid-cols-3">
+            {/* Upload Section */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <CardTitle className="text-xl">Upload Photo</CardTitle>
+                  <CardDescription>
+                    Upload a family photo to discover its historical context and
+                    story
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift ${
+                      isDragActive
+                        ? "border-primary bg-primary/5"
+                        : preview
+                        ? "border-green-500 bg-green-50/50"
+                        : "border-border hover:border-primary/50 hover:bg-muted/50"
+                    }`}
+                  >
+                    <input {...getInputProps()} />
+                    <div className="flex flex-col items-center gap-4">
+                      {preview ? (
+                        <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                          <Image
+                            src={preview}
+                            alt="Preview"
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                          <Upload className="w-8 h-8 text-primary" />
+                        </div>
+                      )}
+                      {preview ? (
+                        <div>
+                          <p className="font-medium text-foreground">
+                            {file?.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {file && (file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="font-medium text-foreground mb-1">
+                            {isDragActive
+                              ? "Drop your photo here"
+                              : "Drag & drop a photo here"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            or click to browse files
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {fileRejections.length > 0 && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        {fileRejections[0].errors[0].message}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="description"
+                      className="text-sm font-medium"
+                    >
+                      Photo Description (Optional)
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide any context about the photo - when it was taken, who's in it, where it was taken, etc. This helps improve the AI analysis."
+                      className="min-h-[80px] transition-colors focus:border-primary/50"
+                    />
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <Button
+                      onClick={analyzePhoto}
+                      disabled={!file || isAnalyzing}
+                      className="w-full hover-lift"
+                      size="lg"
+                    >
+                      {isAnalyzing ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : (
+                        <Sparkles className="mr-2 h-5 w-5" />
+                      )}
+                      {isAnalyzing ? "Analyzing Photo..." : "Analyze Photo"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Info Section */}
+            <div className="space-y-6">
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <CardTitle className="text-xl">Supported Formats</CardTitle>
+                  <CardDescription>
+                    We support most common image formats
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                        <ImageIcon className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">JPEG / JPG</p>
+                        <p className="text-xs text-muted-foreground">
+                          Most common format
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                      <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+                        <ImageIcon className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">PNG</p>
+                        <p className="text-xs text-muted-foreground">
+                          High quality format
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                      <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                        <ImageIcon className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">WebP / Other</p>
+                        <p className="text-xs text-muted-foreground">
+                          Modern formats
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    What We Analyze
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Clock className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">Time Period</p>
+                      <p className="text-muted-foreground text-xs">
+                        Dating based on clothing, technology, and style
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Users className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">People & Roles</p>
+                      <p className="text-muted-foreground text-xs">
+                        Identifying individuals and their relationships
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">Location Clues</p>
+                      <p className="text-muted-foreground text-xs">
+                        Geographic and environmental indicators
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <BookOpen className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-1">Historical Context</p>
+                      <p className="text-muted-foreground text-xs">
+                        Social and cultural background information
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <CardTitle className="text-xl">
+                    Tips for Best Results
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                    <p className="text-muted-foreground">
+                      Use high-resolution scans or photos when possible
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                    <p className="text-muted-foreground">
+                      Include any known context in the description field
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                    <p className="text-muted-foreground">
+                      Photos with clear details work better for analysis
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                    <p className="text-muted-foreground">
+                      Group photos provide more social context
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          /* Analysis Results */
+          <div className="grid gap-8 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl">
+                        Photo Story Analysis
+                      </CardTitle>
+                      <CardDescription>
+                        AI-powered insights about your historical photo
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadStory}
+                        className="hover-lift"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setAnalysis(null);
+                          setFile(null);
+                          setPreview("");
+                          setDescription("");
+                        }}
+                        className="hover-lift"
+                      >
+                        New Analysis
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Tabs
+                    value={activeTab}
+                    onValueChange={setActiveTab}
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger
+                        value="story"
+                        className="flex items-center gap-2"
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        <span className="hidden sm:inline">Story</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="people"
+                        className="flex items-center gap-2"
+                      >
+                        <Users className="h-4 w-4" />
+                        <span className="hidden sm:inline">People</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="context"
+                        className="flex items-center gap-2"
+                      >
+                        <Clock className="h-4 w-4" />
+                        <span className="hidden sm:inline">Context</span>
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="details"
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span className="hidden sm:inline">Details</span>
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="story" className="mt-6">
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <BookOpen className="h-5 w-5 text-primary" />
+                              Generated Story
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                              {analysis.story}
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Info className="h-5 w-5 text-primary" />
+                              Historical Context
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {analysis.historicalContext}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="people" className="mt-6">
+                      <div className="space-y-4">
+                        {analysis.people.map((person, index) => (
+                          <Card key={index}>
+                            <CardContent className="p-4">
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                    <Users className="h-5 w-5 text-primary" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-semibold">
+                                      Person {index + 1}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {person.position}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="grid gap-3 text-sm">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">
+                                      Age Estimate:
+                                    </span>
+                                    <Badge variant="outline">
+                                      {person.ageEstimate}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">
+                                      Possible Role:
+                                    </span>
+                                    <span className="font-medium">
+                                      {person.possibleRole}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">
+                                      Clothing:
+                                    </span>
+                                    <p className="mt-1 text-foreground">
+                                      {person.clothingDescription}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="context" className="mt-6">
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Calendar className="h-5 w-5 text-primary" />
+                              Date Estimate
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">
+                                  Period:
+                                </span>
+                                <Badge variant="secondary">
+                                  {analysis.dateEstimate.period}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">
+                                  Confidence:
+                                </span>
+                                <Badge variant="outline">
+                                  {analysis.dateEstimate.confidence}%
+                                </Badge>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">
+                                  Explanation:
+                                </span>
+                                <p className="mt-1 text-foreground">
+                                  {analysis.dateEstimate.explanation}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {analysis.locationClues.length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                <MapPin className="h-5 w-5 text-primary" />
+                                Location Clues
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                {analysis.locationClues.map((clue, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-start gap-2"
+                                  >
+                                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                                    <p className="text-muted-foreground">
+                                      {clue}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="details" className="mt-6">
+                      <div className="space-y-6">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">
+                              Clothing Analysis
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {analysis.clothingAnalysis}
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg">
+                              Background Analysis
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {analysis.backgroundAnalysis}
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        {analysis.suggestions.length > 0 && (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                                Research Suggestions
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                {analysis.suggestions.map(
+                                  (suggestion, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex items-start gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                                      <p className="text-muted-foreground">
+                                        {suggestion}
+                                      </p>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Photo Preview */}
+            <div className="space-y-6">
+              <Card variant="elevated" className="animate-slide-up">
+                <CardHeader>
+                  <CardTitle className="text-xl">Original Photo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {preview && (
+                    <div className="relative w-full aspect-square rounded-lg overflow-hidden">
+                      <Image
+                        src={preview}
+                        alt="Analyzed photo"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  )}
+                  {file && (
+                    <div className="mt-4 space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          File name:
+                        </span>
+                        <span className="font-medium truncate max-w-32">
+                          {file.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Size:</span>
+                        <span className="font-medium">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+      <Footer />
+    </div>
+  );
+}

@@ -1,0 +1,129 @@
+// =================
+// SCHEMA ADDITIONS FOR ANONYMOUS USAGE SYSTEM
+// Add these models to your existing schema.prisma
+// =================
+
+enum IdentityType {
+  ANON
+  USER
+}
+
+// Core identity abstraction - replaces browser-only session tracking
+model Identity {
+  id            String        @id @default(cuid())
+  type          IdentityType
+  
+  // For anonymous users - opaque, non-identifying key
+  anonKey       String?       @unique
+  
+  // For logged-in users - link to actual user
+  userId        String?       @unique
+  user          User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // TTL tracking for cleanup
+  lastSeenAt    DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  
+  // Relationships
+  usageByIdentity UsageByIdentity[]
+  mergeEventsFrom MergeEvent[] @relation("FromIdentity")
+  mergeEventsTo   MergeEvent[] @relation("ToIdentity")
+  
+  @@index([anonKey])
+  @@index([userId])
+  @@index([lastSeenAt])
+  @@index([type, lastSeenAt])
+}
+
+// Server-side usage ledger - replaces client-side tracking
+model UsageByIdentity {
+  id            String        @id @default(cuid())
+  identityId    String
+  identity      Identity      @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  
+  type          AnalysisType
+  count         Int           @default(0)
+  
+  // Monthly period tracking
+  periodStart   DateTime      // e.g., 2024-01-01 00:00:00
+  periodEnd     DateTime      // e.g., 2024-01-31 23:59:59
+  
+  lastEventAt   DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@unique([identityId, type, periodStart])
+  @@index([identityId, periodStart])
+  @@index([type, periodStart])
+  @@index([lastEventAt])
+}
+
+// Audit trail for identity merges
+model MergeEvent {
+  id              String    @id @default(cuid())
+  
+  fromIdentityId  String
+  fromIdentity    Identity  @relation("FromIdentity", fields: [fromIdentityId], references: [id])
+  
+  toIdentityId    String  
+  toIdentity      Identity  @relation("ToIdentity", fields: [toIdentityId], references: [id])
+  
+  performedAt     DateTime  @default(now())
+  rulesVersion    String    @default("v1.0") // For tracking merge logic changes
+  
+  // Merge summary for debugging
+  mergedCounts    Json      // { "DOCUMENT": 2, "RESEARCH": 1, ... }
+  
+  @@index([fromIdentityId])
+  @@index([toIdentityId])
+  @@index([performedAt])
+}
+
+// Rate limiting and abuse prevention
+model RateLimit {
+  id            String    @id @default(cuid())
+  
+  // Multi-level rate limiting
+  identityId    String?   // Per-identity limits
+  ipHash        String?   // Per-IP limits (hashed for privacy)
+  globalKey     String?   // Global system limits
+  
+  // Tracking
+  requestCount  Int       @default(0)
+  windowStart   DateTime  @default(now())
+  windowEnd     DateTime
+  
+  lastRequestAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  
+  @@unique([identityId, windowStart])
+  @@unique([ipHash, windowStart])
+  @@unique([globalKey, windowStart])
+  @@index([identityId, windowStart])
+  @@index([ipHash, windowStart])
+  @@index([lastRequestAt])
+}
+
+// =================
+// USER MODEL ADDITIONS
+// Add this relation to your existing User model:
+// =================
+
+// Add to User model:
+// identity      Identity?
+
+// =================
+// SUBSCRIPTION LIMITS (Update your existing constants)
+// =================
+
+// Update FREE tier limits in your types/index.ts:
+// FREE: {
+//   documents: 2,
+//   dna: 0,        // Requires signup
+//   trees: 1,
+//   research: 5,
+//   photos: 0,     // Requires signup
+//   gedcomExport: false,
+//   apiAccess: false,
+//   prioritySupport: false,
+// }
