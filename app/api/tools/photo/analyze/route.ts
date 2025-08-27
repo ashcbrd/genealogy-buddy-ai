@@ -17,20 +17,29 @@ export async function POST(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id;
-    const { photoId, photoDescription, additionalContext } = await req.json();
+    const { photoId, photoDescription, imageData, mimeType, fileName, additionalContext } = await req.json();
 
-    if (!photoId && !photoDescription) {
+    if (!photoId && !photoDescription && !imageData) {
       return NextResponse.json(
-        { error: "Photo ID or description is required" },
+        { error: "Photo ID, description, or image data is required" },
         { status: 400 }
       );
     }
 
     let photo = null;
-    let analysisDescription = photoDescription;
+    let imageAnalysisData = null;
 
-    // If photoId provided, get photo from database (only for authenticated users)
-    if (photoId && userId) {
+    // Handle direct image upload (new flow)
+    if (imageData) {
+      imageAnalysisData = {
+        imageData,
+        mimeType: mimeType || 'image/jpeg',
+        fileName: fileName || 'uploaded_photo.jpg',
+        additionalContext
+      };
+    }
+    // Handle saved photo from database (existing flow)
+    else if (photoId && userId) {
       photo = await prisma.photo.findFirst({
         where: {
           id: photoId,
@@ -46,24 +55,43 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Use existing metadata or filename as description
-      analysisDescription = photo.metadata ? 
+      // For saved photos, we'll use text description (legacy support)
+      const analysisDescription = photo.metadata ? 
         `Photo: ${photo.filename}. ${JSON.stringify(photo.metadata)}` :
         `Photo: ${photo.filename}`;
+      
+      imageAnalysisData = {
+        textDescription: additionalContext ? 
+          `${analysisDescription}\n\nAdditional context: ${additionalContext}` : 
+          analysisDescription
+      };
+    }
+    // Handle text-only description (legacy support)  
+    else if (photoDescription) {
+      const analysisDescription = additionalContext ? 
+        `${photoDescription}\n\nAdditional context: ${additionalContext}` : 
+        photoDescription;
+      
+      imageAnalysisData = {
+        textDescription: analysisDescription
+      };
     } else if (photoId && !userId) {
       return NextResponse.json(
-        { error: "Saved photos are not available for anonymous users. Please sign in or provide a photo description directly." },
+        { error: "Saved photos are not available for anonymous users. Please sign in or provide image data directly." },
         { status: 403 }
       );
     }
 
-    // Add additional context if provided
-    if (additionalContext) {
-      analysisDescription += `\n\nAdditional context: ${additionalContext}`;
+    // Ensure we have analysis data
+    if (!imageAnalysisData) {
+      return NextResponse.json(
+        { error: "Unable to process photo analysis request" },
+        { status: 400 }
+      );
     }
 
-    // Analyze with Claude
-    const result = await analyzePhoto(analysisDescription, userId || accessResult.identity.identityId);
+    // Analyze with Claude (now supports both image and text)
+    const result = await analyzePhoto(imageAnalysisData, userId);
 
     // Save analysis to database (only for authenticated users)
     let analysisId = null;
@@ -74,8 +102,8 @@ export async function POST(req: NextRequest) {
           type: "PHOTO",
           input: {
             photoId,
-            description: analysisDescription,
-            additionalContext,
+            description: imageAnalysisData.textDescription || imageAnalysisData.fileName || 'Image analysis',
+            additionalContext: imageAnalysisData.additionalContext,
           },
           result: result as any,
           confidence: (result as any).confidence || 0.7,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -61,19 +61,32 @@ export default function ResearchCopilotPage() {
   const [error, setError] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]"
-      );
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+  const scrollToNewMessage = () => {
+    const root = scrollAreaRef.current;
+    if (!root) return;
+
+    const viewport = root.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLElement | null;
+    if (!viewport) return;
+
+    const nodes = viewport.querySelectorAll("[data-message]");
+    const last = nodes[nodes.length - 1] as HTMLElement | undefined;
+
+    if (last) {
+      const padding = 100;
+      const messageTop = last.offsetTop; // HTMLElement has offsetTop
+      viewport.scrollTo({
+        top: Math.max(0, messageTop - padding),
+        behavior: "smooth",
+      });
+    } else {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
     }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToNewMessage();
   }, [messages]);
 
   const sendMessage = async () => {
@@ -92,7 +105,7 @@ export default function ResearchCopilotPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/tools/research", {
+      const res = await fetch("/api/tools/research/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: userMessage.content }),
@@ -184,9 +197,9 @@ export default function ResearchCopilotPage() {
           <div className="lg:col-span-3">
             <Card
               variant="elevated"
-              className="h-[600px] flex flex-col animate-slide-up"
+              className="h-[calc(100vh-280px)] min-h-[600px] max-h-[800px] flex flex-col animate-slide-up"
             >
-              <CardHeader className="flex-shrink-0">
+              <CardHeader className="flex-shrink-0 border-b">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-xl">
@@ -209,12 +222,28 @@ export default function ResearchCopilotPage() {
               </CardHeader>
 
               {/* Messages */}
-              <CardContent className="flex-1 flex flex-col p-0">
-                <ScrollArea className="flex-1 px-6" ref={scrollAreaRef}>
-                  <div className="space-y-6 py-4">
+              <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
+                <ScrollArea className="flex-1 h-0" ref={scrollAreaRef}>
+                  <div className="space-y-6 p-6 pb-20">
+                    {messages.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                          <MessageCircle className="w-8 h-8 text-primary" />
+                        </div>
+                        <h3 className="text-lg font-medium mb-2">
+                          Start a conversation
+                        </h3>
+                        <p className="text-muted-foreground max-w-sm">
+                          Ask me anything about genealogy research, sources,
+                          methods, or strategies.
+                        </p>
+                      </div>
+                    )}
+
                     {messages.map((message) => (
                       <div
                         key={message.id}
+                        data-message
                         className={`flex items-start gap-3 ${
                           message.role === "user" ? "flex-row-reverse" : ""
                         }`}
@@ -230,7 +259,7 @@ export default function ResearchCopilotPage() {
                             {message.role === "assistant" ? (
                               <Bot className="w-4 h-4" />
                             ) : (
-                              <User className="w-4 h-4" />
+                              <User className="w-4 w-4" />
                             )}
                           </AvatarFallback>
                         </Avatar>
@@ -241,8 +270,8 @@ export default function ResearchCopilotPage() {
                               : "bg-muted/50 text-foreground mr-12"
                           }`}
                         >
-                          <div className="text-sm whitespace-pre-wrap">
-                            {message.content}
+                          <div className="text-sm">
+                            <RichText content={message.content} />
                           </div>
                           <div className="text-xs opacity-70 mt-2">
                             {message.timestamp.toLocaleTimeString()}
@@ -252,7 +281,7 @@ export default function ResearchCopilotPage() {
                     ))}
 
                     {isLoading && (
-                      <div className="flex items-start gap-3">
+                      <div data-message className="flex items-start gap-3">
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className="bg-primary/10 text-primary">
                             <Bot className="w-4 h-4" />
@@ -271,8 +300,8 @@ export default function ResearchCopilotPage() {
                   </div>
                 </ScrollArea>
 
-                {/* Input */}
-                <div className="border-t p-4">
+                {/* Fixed Input at Bottom */}
+                <div className="absolute bottom-0 left-0 right-0 border-t p-4 bg-background">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 relative">
                       <Input
@@ -360,7 +389,8 @@ export default function ResearchCopilotPage() {
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
                     <p className="text-muted-foreground">
-                      Don&apos;t overlook local historical societies and libraries
+                      Don&apos;t overlook local historical societies and
+                      libraries
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
@@ -425,4 +455,111 @@ export default function ResearchCopilotPage() {
       <Footer />
     </div>
   );
+}
+
+// Rich Text Component for rendering formatted messages
+function RichText({ content }: { content: string }) {
+  // Simple rich text formatter that handles basic markdown-like syntax
+  const formatText = (text: string) => {
+    const lines = text.split("\n");
+
+    return lines.map((line, index) => {
+      const key = `line-${index}`;
+
+      if (line.trim() === "") {
+        return <br key={key} />;
+      }
+
+      // Handle headers
+      if (line.startsWith("### ")) {
+        return (
+          <h3
+            key={key}
+            className="font-semibold text-base mt-3 mb-2 first:mt-0"
+          >
+            {line.substring(4)}
+          </h3>
+        );
+      }
+
+      if (line.startsWith("## ")) {
+        return (
+          <h2 key={key} className="font-semibold text-lg mt-4 mb-2 first:mt-0">
+            {line.substring(3)}
+          </h2>
+        );
+      }
+
+      if (line.startsWith("# ")) {
+        return (
+          <h1 key={key} className="font-bold text-xl mt-4 mb-3 first:mt-0">
+            {line.substring(2)}
+          </h1>
+        );
+      }
+
+      // Handle lists
+      if (line.match(/^\s*[-*]\s/)) {
+        const indent = (line.match(/^\s*/) || [""])[0].length;
+        const content = line.replace(/^\s*[-*]\s/, "");
+        return (
+          <div
+            key={key}
+            className="flex items-start gap-2 my-1"
+            style={{ marginLeft: `${indent * 8}px` }}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-current mt-2 flex-shrink-0" />
+            <span className="leading-relaxed">{formatInlineText(content)}</span>
+          </div>
+        );
+      }
+
+      // Handle numbered lists
+      if (line.match(/^\s*\d+\.\s/)) {
+        const indent = (line.match(/^\s*/) || [""])[0].length;
+        const match = line.match(/^\s*(\d+)\.\s(.*)$/);
+        if (match) {
+          const number = match[1];
+          const content = match[2];
+          return (
+            <div
+              key={key}
+              className="flex items-start gap-2 my-1"
+              style={{ marginLeft: `${indent * 8}px` }}
+            >
+              <span className="text-xs font-medium text-muted-foreground mt-0.5 min-w-[16px]">
+                {number}.
+              </span>
+              <span className="leading-relaxed">
+                {formatInlineText(content)}
+              </span>
+            </div>
+          );
+        }
+      }
+
+      // Handle regular paragraphs
+      return (
+        <p key={key} className="leading-relaxed mb-2 last:mb-0">
+          {formatInlineText(line)}
+        </p>
+      );
+    });
+  };
+
+  // Handle inline formatting - simplified version
+  const formatInlineText = (text: string) => {
+    // Simple bold formatting
+    let formatted = text.replace(
+      /\*\*(.*?)\*\*/g,
+      '<strong class="font-semibold">$1</strong>'
+    );
+    // Simple italic formatting
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+
+    // Return as JSX with dangerouslySetInnerHTML to avoid complex parsing
+    return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
+  };
+
+  return <div className="rich-text">{formatText(content)}</div>;
 }

@@ -294,16 +294,34 @@ export default function TreeBuilderPage() {
                           </div>
                         </div>
                         <div className="space-y-2 text-sm text-muted-foreground">
+                          {member.relationshipToUser && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-3.5 w-3.5" />
+                              <span className="font-medium text-primary truncate">{member.relationshipToUser}</span>
+                            </div>
+                          )}
                           {member.birthDate && (
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5" />
-                              <span>Born: {new Date(member.birthDate).getFullYear()}</span>
+                              <span>Born: {member.birthDate.includes('-') ? new Date(member.birthDate).getFullYear() : member.birthDate}</span>
+                            </div>
+                          )}
+                          {member.deathDate && (
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5" />
+                              <span>Died: {member.deathDate.includes('-') ? new Date(member.deathDate).getFullYear() : member.deathDate}</span>
                             </div>
                           )}
                           {member.birthPlace && (
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3.5 w-3.5" />
-                              <span className="truncate">{member.birthPlace}</span>
+                              <span className="truncate">Born in {member.birthPlace}</span>
+                            </div>
+                          )}
+                          {member.deathPlace && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span className="truncate">Died in {member.deathPlace}</span>
                             </div>
                           )}
                         </div>
@@ -456,6 +474,15 @@ export default function TreeBuilderPage() {
                     </div>
                     
                     <div className="space-y-3 text-sm">
+                      {selectedMember.relationshipToUser && (
+                        <div className="flex items-center justify-between py-2 border-b border-border/50">
+                          <span className="text-muted-foreground flex items-center gap-2">
+                            <User className="h-3.5 w-3.5" />
+                            Relationship:
+                          </span>
+                          <span className="font-medium text-primary">{selectedMember.relationshipToUser}</span>
+                        </div>
+                      )}
                       {selectedMember.birthDate && (
                         <div className="flex items-center justify-between py-2 border-b border-border/50">
                           <span className="text-muted-foreground flex items-center gap-2">
@@ -463,7 +490,9 @@ export default function TreeBuilderPage() {
                             Birth Date:
                           </span>
                           <span className="font-medium">
-                            {new Date(selectedMember.birthDate).toLocaleDateString()}
+                            {selectedMember.birthDate.includes('-') 
+                              ? new Date(selectedMember.birthDate).toLocaleDateString() 
+                              : selectedMember.birthDate}
                           </span>
                         </div>
                       )}
@@ -474,7 +503,9 @@ export default function TreeBuilderPage() {
                             Death Date:
                           </span>
                           <span className="font-medium">
-                            {new Date(selectedMember.deathDate).toLocaleDateString()}
+                            {selectedMember.deathDate.includes('-') 
+                              ? new Date(selectedMember.deathDate).toLocaleDateString() 
+                              : selectedMember.deathDate}
                           </span>
                         </div>
                       )}

@@ -5,7 +5,15 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ["s3.amazonaws.com", "lh3.googleusercontent.com"],
+    domains: ["lh3.googleusercontent.com"],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/**',
+      }
+    ],
   },
   experimental: {
     serverActions: {

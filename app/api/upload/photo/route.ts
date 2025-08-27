@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generatePresignedUrl, generateFileKey, validateFile, FILE_CONFIGS } from "@/lib/s3";
+import { generatePresignedUrl, generateFilePath, validateFile, FILE_CONFIGS } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,18 +36,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate unique S3 key
-    const s3Key = generateFileKey(userId, "photos", filename);
+    // Generate unique storage path
+    const storagePath = generateFilePath(userId, "photos", filename);
 
     // Generate presigned URL for upload
-    const uploadUrl = await generatePresignedUrl(s3Key, contentType);
+    const uploadUrl = await generatePresignedUrl(storagePath, contentType);
 
     // Create photo record in database (pending upload)
     const photo = await prisma.photo.create({
       data: {
         userId,
         filename,
-        s3Key,
+        storagePath,
         metadata: metadata || {},
       },
     });
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       success: true,
       photoId: photo.id,
       uploadUrl,
-      s3Key,
+      storagePath,
     });
 
   } catch (error) {

@@ -15,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
@@ -38,6 +37,7 @@ import {
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { z } from "zod";
+import { SUBSCRIPTION_FEATURES } from "@/lib/constants";
 
 // Validation schema
 const registerSchema = z
@@ -77,7 +77,6 @@ const getPasswordStrengthLabel = (strength: number): string => {
   return "Strong";
 };
 
-
 function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -98,6 +97,7 @@ function RegisterPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>(plan || "FREE");
 
   // Update password strength when password changes
   useEffect(() => {
@@ -184,7 +184,7 @@ function RegisterPageContent() {
           email: formData.email,
           password: formData.password,
           referral,
-          plan,
+          plan: selectedPlan === "FREE" ? null : selectedPlan,
         }),
       });
 
@@ -207,8 +207,8 @@ function RegisterPageContent() {
           let loginUrl = "/login?registered=true";
           if (returnUrl) {
             loginUrl += `&returnUrl=${encodeURIComponent(returnUrl)}`;
-          } else if (plan) {
-            loginUrl += `&plan=${plan}`;
+          } else if (selectedPlan && selectedPlan !== "FREE") {
+            loginUrl += `&plan=${selectedPlan}`;
           }
           router.push(loginUrl);
         }, 2000);
@@ -223,8 +223,6 @@ function RegisterPageContent() {
       setIsLoading(false);
     }
   };
-
-
 
   if (verificationSent) {
     return (
@@ -241,7 +239,7 @@ function RegisterPageContent() {
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-sm text-muted-foreground mb-4">
-              Click the link in the email to verify your account and meet your 
+              Click the link in the email to verify your account and meet your
               Genealogy Buddy AI!
             </p>
             <Button
@@ -285,16 +283,56 @@ function RegisterPageContent() {
                   Meet Your Research Buddy!
                 </CardTitle>
                 <CardDescription className="text-center">
-                  Join free and start discovering amazing family stories together
+                  Join free and start discovering amazing family stories
+                  together
                 </CardDescription>
                 {plan && (
-                  <Alert className="mt-3">
-                    <Sparkles className="h-4 w-4" />
-                    <AlertDescription>
-                      You&apos;ll be subscribed to the <strong>{plan}</strong>{" "}
-                      plan after registration
-                    </AlertDescription>
-                  </Alert>
+                  <div className="mt-4 space-y-3">
+                    <div className="p-4 rounded-lg border border-primary bg-primary/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-sm">
+                            Selected Plan: {plan}
+                          </span>
+                          {SUBSCRIPTION_FEATURES[
+                            plan as keyof typeof SUBSCRIPTION_FEATURES
+                          ]?.popular && (
+                            <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                              Popular
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold">
+                          $
+                          {(
+                            SUBSCRIPTION_FEATURES[
+                              plan as keyof typeof SUBSCRIPTION_FEATURES
+                            ]?.price / 100
+                          ).toFixed(0)}
+                          /mo
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {
+                          SUBSCRIPTION_FEATURES[
+                            plan as keyof typeof SUBSCRIPTION_FEATURES
+                          ]?.features[0]
+                        }
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedPlan("FREE")}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Or just sign up for free
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </CardHeader>
               <CardContent>

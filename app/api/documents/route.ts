@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteFile, generateDownloadUrl } from "@/lib/s3";
+import { deleteStorageFile, generateDownloadUrl } from "@/lib/storage";
 
 // GET - List user's documents
 export async function GET(req: NextRequest) {
@@ -112,11 +112,11 @@ export async function DELETE(req: NextRequest) {
       data: { deletedAt: new Date() },
     });
 
-    // Delete from S3 (optional - could be done in background job)
+    // Delete from storage (optional - could be done in background job)
     try {
-      await deleteFile(document.s3Key);
-    } catch (s3Error) {
-      console.warn("Failed to delete file from S3:", s3Error);
+      await deleteStorageFile(document.storagePath);
+    } catch (storageError) {
+      console.warn("Failed to delete file from storage:", storageError);
       // Continue - database record is marked as deleted
     }
 

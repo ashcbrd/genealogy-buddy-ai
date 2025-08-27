@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     // Analyze with Claude
     const analysis: DocumentAnalysisResult = await analyzeDocument(
       ocrText,
-      session?.user?.id || accessResult.identity.identityId
+      session?.user?.id
     );
 
     let savedAnalysis = null;

@@ -4,8 +4,7 @@ import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title:
-    "Genealogy Buddy AI | Family Tree Builder, DNA Analysis & Ancestry Research",
+  title: "Genealogy Buddy AI",
   description:
     "Uncover your family history with Genealogy Buddy AI. Analyze DNA, interpret documents, tell photo stories, and build your family tree with an intelligent genealogy research assistant.",
   keywords: [

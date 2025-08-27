@@ -159,6 +159,7 @@ export interface PhotoAnalysisResult {
   dateEstimate: {
     period: string;
     confidence: number;
+    explanation: string;
   };
   clothingAnalysis: string;
   backgroundAnalysis: string;
@@ -168,7 +169,10 @@ export interface PhotoAnalysisResult {
     position: string;
     ageEstimate: string;
     clothingDescription: string;
+    possibleRole: string;
   }>;
+  locationClues: string[];
+  suggestions: string[];
 }
 
 // ----------------------
@@ -261,6 +265,7 @@ export interface FamilyMember {
   parentIds: string[];
   confidence: number; // 0..1
   aiGenerated: boolean;
+  relationshipToUser?: string; // e.g., "Father of John Smith", "Mother of Jane Doe"
 }
 
 export interface NewMemberForm {

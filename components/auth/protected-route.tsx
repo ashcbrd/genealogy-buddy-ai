@@ -14,7 +14,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
   children,
   redirectTo = "/login",
-  loadingComponent
+  loadingComponent,
 }: ProtectedRouteProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -25,7 +25,9 @@ export function ProtectedRoute({
     if (status === "unauthenticated") {
       // Store the current path to redirect back after login
       const currentPath = window.location.pathname;
-      const redirectUrl = `${redirectTo}?from=${encodeURIComponent(currentPath)}`;
+      const redirectUrl = `${redirectTo}?from=${encodeURIComponent(
+        currentPath
+      )}`;
       router.push(redirectUrl);
     }
   }, [status, router, redirectTo]);
@@ -35,7 +37,7 @@ export function ProtectedRoute({
     if (loadingComponent) {
       return <>{loadingComponent}</>;
     }
-    
+
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -65,7 +67,7 @@ export function withAuth<T extends Record<string, unknown>>(
 ) {
   return function AuthenticatedComponent(props: T) {
     return (
-      <ProtectedRoute 
+      <ProtectedRoute
         redirectTo={options?.redirectTo}
         loadingComponent={options?.loadingComponent}
       >

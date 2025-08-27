@@ -1465,7 +1465,7 @@ export default function AdminPage() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>S3 Usage</span>
+                    <span>Storage Usage</span>
                     <span className="font-medium">124 GB</span>
                   </div>
                   <Progress value={24.8} />

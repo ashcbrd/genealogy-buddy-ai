@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteFile, generateDownloadUrl } from "@/lib/s3";
+import { deleteStorageFile, generateDownloadUrl } from "@/lib/storage";
 
 // GET - List user's photos
 export async function GET(req: NextRequest) {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     const photosWithUrls = await Promise.all(
       photos.map(async (photo) => {
         try {
-          const viewUrl = await generateDownloadUrl(photo.s3Key);
+          const viewUrl = await generateDownloadUrl(photo.storagePath);
           return { ...photo, viewUrl };
         } catch (error) {
           console.warn(`Failed to generate URL for photo ${photo.id}:`, error);
@@ -115,14 +115,14 @@ export async function DELETE(req: NextRequest) {
       data: { deletedAt: new Date() },
     });
 
-    // Delete from S3 (optional - could be done in background job)
+    // Delete from storage (optional - could be done in background job)
     try {
-      await deleteFile(photo.s3Key);
-      if (photo.s3EnhancedKey) {
-        await deleteFile(photo.s3EnhancedKey);
+      await deleteStorageFile(photo.storagePath);
+      if (photo.enhancedStoragePath) {
+        await deleteStorageFile(photo.enhancedStoragePath);
       }
-    } catch (s3Error) {
-      console.warn("Failed to delete file from S3:", s3Error);
+    } catch (storageError) {
+      console.warn("Failed to delete file from storage:", storageError);
       // Continue - database record is marked as deleted
     }
 

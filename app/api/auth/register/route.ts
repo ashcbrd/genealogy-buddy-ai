@@ -7,7 +7,7 @@ import { generateToken } from "@/lib/utils";
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, password, plan } = await req.json();
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -24,18 +24,31 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user with subscription
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         provider: "credentials",
+        subscription: {
+          create: {
+            tier: plan || "FREE",
+          },
+        },
+      },
+      include: {
+        subscription: true,
       },
     });
 
-    // Create Stripe customer
-    await createCustomer(email, user.id);
+    // Create Stripe customer (optional - don't fail registration if it fails)
+    try {
+      await createCustomer(email, user.id);
+    } catch (stripeError) {
+      console.warn("Failed to create Stripe customer (non-blocking):", stripeError);
+      // Continue with registration - Stripe customer can be created later
+    }
 
     // Send verification email
     const verificationToken = generateToken();
@@ -57,6 +70,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       message: "User created successfully",
       userId: user.id,
+      plan: user.subscription?.tier || "FREE",
     });
   } catch (error) {
     console.error("Registration error:", error);

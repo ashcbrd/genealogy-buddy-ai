@@ -6,7 +6,7 @@ import { checkUsageLimit, incrementUsage } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { checkUnifiedAccess, recordUnifiedUsage, createUnifiedErrorResponse, createUnifiedSuccessResponse } from "@/lib/unified-access-control";
 import { AnalysisType } from "@prisma/client";
-import type { ResearchChatRequest } from "@/types";
+import type { ResearchChatRequest, ChatMessage } from "@/types";
 import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
@@ -19,9 +19,36 @@ export async function POST(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
 
-    const { messages } = (await req.json()) as ResearchChatRequest;
+    const requestBody = await req.json();
+    
+    // Handle both message formats for backward compatibility
+    let messages: ChatMessage[];
+    
+    if ('messages' in requestBody) {
+      // New format: array of messages for multi-turn chat
+      messages = requestBody.messages as ChatMessage[];
+    } else if ('query' in requestBody) {
+      // Current format: single query string
+      messages = [{
+        role: "user",
+        content: requestBody.query as string
+      }];
+    } else {
+      return NextResponse.json(
+        { error: "Either 'messages' array or 'query' string is required" },
+        { status: 400 }
+      );
+    }
 
-    const response = await researchChat(messages, session?.user?.id || accessResult.identity.identityId);
+    // Validate messages array
+    if (!messages || messages.length === 0) {
+      return NextResponse.json(
+        { error: "Messages cannot be empty" },
+        { status: 400 }
+      );
+    }
+
+    const response = await researchChat(messages, session?.user?.id);
 
     // Save chat only for authenticated users
     if (session?.user?.id) {

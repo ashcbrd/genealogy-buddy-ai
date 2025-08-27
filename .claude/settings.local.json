@@ -12,7 +12,8 @@
       "Bash(npm run:*)",
       "Bash(node:*)",
       "Bash(npx prisma migrate:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx next:*)"
     ],
     "deny": [],
     "ask": [],

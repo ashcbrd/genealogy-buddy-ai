@@ -97,16 +97,31 @@ export default function PhotoStorytellerPage() {
     setIsAnalyzing(true);
     setError("");
 
-    const formData = new FormData();
-    formData.append("photo", file);
-    if (description.trim()) {
-      formData.append("description", description.trim());
-    }
-
     try {
+      // Convert image to base64 for Claude Vision API
+      const base64Image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove data:image/jpeg;base64, prefix if present
+          const base64 = result.split(",")[1] || result;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
       const res = await fetch("/api/tools/photo/analyze", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageData: base64Image,
+          mimeType: file.type,
+          fileName: file.name,
+          additionalContext: description.trim() || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -537,9 +552,29 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                              {analysis.story}
-                            </p>
+                            {analysis.story &&
+                            analysis.story !==
+                              "Unable to generate a detailed story from the available information." ? (
+                              <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                                {analysis.story}
+                              </p>
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <BookOpen className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No detailed story could be generated from
+                                    the available information.
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Try uploading a clearer image or providing
+                                    additional context.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
 
@@ -551,9 +586,29 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-muted-foreground leading-relaxed">
-                              {analysis.historicalContext}
-                            </p>
+                            {analysis.historicalContext &&
+                            analysis.historicalContext !==
+                              "No specific historical context could be determined." ? (
+                              <p className="text-muted-foreground leading-relaxed">
+                                {analysis.historicalContext}
+                              </p>
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <Info className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No specific historical context could be
+                                    determined.
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Additional image details or context might
+                                    help provide historical background.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       </div>
@@ -561,53 +616,97 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
 
                     <TabsContent value="people" className="mt-6">
                       <div className="space-y-4">
-                        {analysis.people.map((person, index) => (
-                          <Card key={index}>
-                            <CardContent className="p-4">
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                    <Users className="h-5 w-5 text-primary" />
+                        {analysis.people &&
+                        analysis.people.length > 0 &&
+                        analysis.people[0].position !== "Not specified" ? (
+                          analysis.people.map((person, index) => (
+                            <Card key={index}>
+                              <CardContent className="p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                      <Users className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <div>
+                                      <h3 className="font-semibold">
+                                        Person {index + 1}
+                                      </h3>
+                                      <p className="text-sm text-muted-foreground">
+                                        {person.position}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <h3 className="font-semibold">
-                                      Person {index + 1}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                      {person.position}
-                                    </p>
+                                  <div className="grid gap-3 text-sm">
+                                    <div className="flex items-center justify-between w-max gap-x-4 w-max gap-x-4">
+                                      <span className="text-muted-foreground">
+                                        Age Estimate:
+                                      </span>
+                                      <Badge
+                                        variant={
+                                          person.ageEstimate === "Age unknown"
+                                            ? "secondary"
+                                            : "outline"
+                                        }
+                                      >
+                                        {person.ageEstimate}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between w-max gap-x-4">
+                                      <span className="text-muted-foreground">
+                                        Possible Role:
+                                      </span>
+                                      <span
+                                        className={`font-medium ${
+                                          person.possibleRole === "Role unknown"
+                                            ? "text-muted-foreground"
+                                            : ""
+                                        }`}
+                                      >
+                                        {person.possibleRole}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground">
+                                        Clothing:
+                                      </span>
+                                      <p
+                                        className={`mt-1 ${
+                                          person.clothingDescription ===
+                                          "No clothing details available"
+                                            ? "text-muted-foreground"
+                                            : "text-foreground"
+                                        }`}
+                                      >
+                                        {person.clothingDescription}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="grid gap-3 text-sm">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">
-                                      Age Estimate:
-                                    </span>
-                                    <Badge variant="outline">
-                                      {person.ageEstimate}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">
-                                      Possible Role:
-                                    </span>
-                                    <span className="font-medium">
-                                      {person.possibleRole}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground">
-                                      Clothing:
-                                    </span>
-                                    <p className="mt-1 text-foreground">
-                                      {person.clothingDescription}
-                                    </p>
-                                  </div>
-                                </div>
+                              </CardContent>
+                            </Card>
+                          ))
+                        ) : (
+                          <div className="flex items-center justify-center py-12 text-center">
+                            <div className="space-y-3">
+                              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                <Users className="h-8 w-8 text-muted-foreground" />
                               </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                              <div>
+                                <p className="font-medium text-muted-foreground mb-1">
+                                  No people identified
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Unable to identify specific individuals in
+                                  this photograph.
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Try uploading a clearer image with visible
+                                  faces and details.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 
@@ -621,44 +720,73 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">
-                                  Period:
-                                </span>
-                                <Badge variant="secondary">
-                                  {analysis.dateEstimate.period}
-                                </Badge>
+                            {analysis.dateEstimate.period !==
+                            "Unknown time period" ? (
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between w-max gap-x-4">
+                                  <span className="text-muted-foreground">
+                                    Period:
+                                  </span>
+                                  <Badge variant="secondary">
+                                    {analysis.dateEstimate.period}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center justify-between w-max gap-x-4">
+                                  <span className="text-muted-foreground">
+                                    Confidence:
+                                  </span>
+                                  <Badge
+                                    variant={
+                                      analysis.dateEstimate.confidence < 30
+                                        ? "destructive"
+                                        : analysis.dateEstimate.confidence < 60
+                                        ? "secondary"
+                                        : "outline"
+                                    }
+                                  >
+                                    {analysis.dateEstimate.confidence}%
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Explanation:
+                                  </span>
+                                  <p className="mt-1 text-foreground">
+                                    {analysis.dateEstimate.explanation}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">
-                                  Confidence:
-                                </span>
-                                <Badge variant="outline">
-                                  {analysis.dateEstimate.confidence}%
-                                </Badge>
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <Calendar className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    Unable to determine time period
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Insufficient visual information to estimate
+                                    the date.
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <span className="text-muted-foreground">
-                                  Explanation:
-                                </span>
-                                <p className="mt-1 text-foreground">
-                                  {analysis.dateEstimate.explanation}
-                                </p>
-                              </div>
-                            </div>
+                            )}
                           </CardContent>
                         </Card>
 
-                        {analysis.locationClues.length > 0 && (
-                          <Card>
-                            <CardHeader>
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <MapPin className="h-5 w-5 text-primary" />
-                                Location Clues
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <MapPin className="h-5 w-5 text-primary" />
+                              Location Clues
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            {analysis.locationClues &&
+                            analysis.locationClues.length > 0 &&
+                            analysis.locationClues[0] !==
+                              "No location clues available" ? (
                               <div className="space-y-2">
                                 {analysis.locationClues.map((clue, index) => (
                                   <div
@@ -672,9 +800,24 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                                   </div>
                                 ))}
                               </div>
-                            </CardContent>
-                          </Card>
-                        )}
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <MapPin className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No location clues available
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Unable to identify geographical or
+                                    architectural indicators.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
                       </div>
                     </TabsContent>
 
@@ -687,9 +830,28 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-muted-foreground leading-relaxed">
-                              {analysis.clothingAnalysis}
-                            </p>
+                            {analysis.clothingAnalysis &&
+                            analysis.clothingAnalysis !==
+                              "No clothing details could be analyzed from the available information." ? (
+                              <p className="text-muted-foreground leading-relaxed">
+                                {analysis.clothingAnalysis}
+                              </p>
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No clothing details available
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Unable to analyze clothing or uniform
+                                    details from the image.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
 
@@ -700,21 +862,43 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-muted-foreground leading-relaxed">
-                              {analysis.backgroundAnalysis}
-                            </p>
+                            {analysis.backgroundAnalysis &&
+                            analysis.backgroundAnalysis !==
+                              "No background details could be determined from the available information." ? (
+                              <p className="text-muted-foreground leading-relaxed">
+                                {analysis.backgroundAnalysis}
+                              </p>
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <Eye className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No background details available
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Unable to analyze background elements or
+                                    setting details.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
 
-                        {analysis.suggestions.length > 0 && (
-                          <Card>
-                            <CardHeader>
-                              <CardTitle className="text-lg flex items-center gap-2">
-                                <Sparkles className="h-5 w-5 text-primary" />
-                                Research Suggestions
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Sparkles className="h-5 w-5 text-primary" />
+                              Research Suggestions
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            {analysis.suggestions &&
+                            analysis.suggestions.length > 0 &&
+                            analysis.suggestions[0] !==
+                              "Upload a clearer image or provide additional context for better analysis" ? (
                               <div className="space-y-2">
                                 {analysis.suggestions.map(
                                   (suggestion, index) => (
@@ -730,9 +914,25 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                                   )
                                 )}
                               </div>
-                            </CardContent>
-                          </Card>
-                        )}
+                            ) : (
+                              <div className="flex items-center justify-center py-8 text-center">
+                                <div className="space-y-2">
+                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <Sparkles className="h-6 w-6 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-muted-foreground">
+                                    No specific research suggestions available
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Upload a clearer image or provide additional
+                                    context for targeted genealogy
+                                    recommendations.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
                       </div>
                     </TabsContent>
                   </Tabs>
@@ -759,7 +959,7 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                   )}
                   {file && (
                     <div className="mt-4 space-y-2 text-sm">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between w-max gap-x-4">
                         <span className="text-muted-foreground">
                           File name:
                         </span>
@@ -767,7 +967,7 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                           {file.name}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between w-max gap-x-4">
                         <span className="text-muted-foreground">Size:</span>
                         <span className="font-medium">
                           {(file.size / 1024 / 1024).toFixed(2)} MB

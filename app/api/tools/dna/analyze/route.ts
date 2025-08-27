@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Analyze with Claude
-    const result = await analyzeDNA(analysisData, userId || accessResult.identity.identityId);
+    const result = await analyzeDNA(analysisData, userId);
 
     // Save analysis to database (only for authenticated users)
     let analysisId = null;

@@ -134,7 +134,7 @@ model Document {
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   filename       String
-  s3Key          String
+  storagePath    String
   mimeType       String
   size           Int
   
@@ -208,22 +208,22 @@ model Analysis {
 }
 
 model Photo {
-  id              String            @id @default(cuid())
-  userId         String
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  filename       String
-  s3Key          String
-  s3EnhancedKey  String?
+  filename            String
+  storagePath         String
+  enhancedStoragePath String?
   
-  metadata       Json?
-  story          String?           @db.Text
-  historicalContext String?         @db.Text
-  dateSuggestion String?
+  metadata            Json?
+  story               String?           @db.Text
+  historicalContext   String?           @db.Text
+  dateSuggestion      String?
   
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  deletedAt      DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
 }
 
 model ResearchChat {

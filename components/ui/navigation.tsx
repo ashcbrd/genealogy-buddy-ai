@@ -28,23 +28,26 @@ export function Navigation({ variant = "landing" }: NavigationProps) {
 
           <div className="flex items-center space-x-4">
             <ThemeToggle />
-            
+            <Button variant="ghost" asChild>
+              <Link href="/tools">Try Tools</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/subscription">Pricing</Link>
+            </Button>
             {/* Anonymous User Indicator */}
             {!session && variant === "dashboard" && (
               <Badge variant="secondary" className="hidden sm:flex">
                 Free Trial
               </Badge>
             )}
-            
+
             {/* Landing Page - No Session */}
             {variant === "landing" && !session && (
               <>
                 <Button variant="ghost" asChild>
-                  <Link href="/tools">Try Tools</Link>
-                </Button>
-                <Button variant="ghost" asChild>
                   <Link href="/login">Sign In</Link>
                 </Button>
+
                 <Button asChild>
                   <Link href="/register">Get Started</Link>
                 </Button>
@@ -59,9 +62,11 @@ export function Navigation({ variant = "landing" }: NavigationProps) {
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
                 )}
-                <Button variant="ghost" asChild>
-                  <Link href="/tools">Tools</Link>
-                </Button>
+                {session && (
+                  <Button variant="ghost" asChild>
+                    <Link href="/tools">Tools</Link>
+                  </Button>
+                )}
                 {session && (
                   <>
                     <Button variant="ghost" asChild>
@@ -81,8 +86,8 @@ export function Navigation({ variant = "landing" }: NavigationProps) {
             )}
 
             {session && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => signOut({ callbackUrl: "/" })}
               >
                 Sign Out

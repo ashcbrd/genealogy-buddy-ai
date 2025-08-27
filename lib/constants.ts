@@ -84,9 +84,8 @@ export const FILE_CONFIG = {
       "image/webp",
     ],
   },
-  s3: {
-    region: process.env.AWS_REGION || "us-east-1",
-    bucket: process.env.AWS_S3_BUCKET_NAME || "",
+  supabase: {
+    bucket: "files",
     presignedUrlExpiry: 3600, // 1 hour
   },
 } as const;
@@ -208,7 +207,7 @@ export const ANALYSIS_CONFIG = {
 
 // Claude AI configuration
 export const CLAUDE_CONFIG = {
-  model: "claude-3-opus-20240229",
+  model: "claude-sonnet-4-20250514",
   maxTokens: {
     document: 2000,
     dna: 2500,

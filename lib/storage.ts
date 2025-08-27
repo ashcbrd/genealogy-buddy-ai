@@ -1,87 +1,77 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-});
-
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME!;
+import { supabaseAdmin, uploadFile, deleteFile, createSignedUrl, getPublicUrl } from '@/lib/supabase';
 
 /**
  * Generate a presigned URL for direct upload from client
  */
 export async function generatePresignedUrl(
-  key: string,
+  path: string,
   contentType: string,
   expiresIn = 3600 // 1 hour
 ): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    ContentType: contentType,
-  });
+  // For Supabase, we create a signed upload URL
+  const { data, error } = await supabaseAdmin.storage
+    .from('files')
+    .createSignedUploadUrl(path);
 
-  return await getSignedUrl(s3Client, command, { expiresIn });
+  if (error) {
+    throw new Error(`Failed to generate presigned URL: ${error.message}`);
+  }
+
+  return data.signedUrl;
 }
 
 /**
- * Upload a file directly to S3
+ * Upload a file directly to Supabase Storage
  */
-export async function uploadFile(
-  key: string,
+export async function uploadFileBuffer(
+  path: string,
   body: Buffer | Uint8Array | string,
   contentType: string,
   metadata?: Record<string, string>
 ): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: body,
-    ContentType: contentType,
-    Metadata: metadata,
-  });
+  const { data, error } = await supabaseAdmin.storage
+    .from('files')
+    .upload(path, body, {
+      contentType,
+      cacheControl: '3600',
+      upsert: true,
+      ...(metadata && { metadata })
+    });
 
-  await s3Client.send(command);
-  
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || "us-east-1"}.amazonaws.com/${key}`;
+  if (error) {
+    throw new Error(`Upload failed: ${error.message}`);
+  }
+
+  return getPublicUrl('files', path);
 }
 
 /**
- * Delete a file from S3
+ * Delete a file from Supabase Storage
  */
-export async function deleteFile(key: string): Promise<void> {
-  const command = new DeleteObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-  });
+export async function deleteStorageFile(path: string): Promise<void> {
+  const { error } = await supabaseAdmin.storage
+    .from('files')
+    .remove([path]);
 
-  await s3Client.send(command);
+  if (error) {
+    throw new Error(`Delete failed: ${error.message}`);
+  }
 }
 
 /**
- * Generate a presigned URL for downloading
+ * Generate a signed URL for downloading
  */
 export async function generateDownloadUrl(
-  key: string,
+  path: string,
   expiresIn = 3600 // 1 hour
 ): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-  });
-
-  return await getSignedUrl(s3Client, command, { expiresIn });
+  return await createSignedUrl('files', path, expiresIn);
 }
 
 /**
- * Generate a unique file key for S3
+ * Generate a unique file path for storage
  */
-export function generateFileKey(
+export function generateFilePath(
   userId: string,
   type: "documents" | "photos",
   filename: string
@@ -146,5 +136,3 @@ export const FILE_CONFIGS = {
     maxSize: 20 * 1024 * 1024, // 20MB
   },
 };
-
-export { s3Client, BUCKET_NAME };
