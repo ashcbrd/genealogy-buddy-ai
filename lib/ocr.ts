@@ -1,17 +1,7 @@
-import * as vision from "@google-cloud/vision";
-import { logger } from "./logger";
-
 /**
- * OCR utility for extracting text from images and documents
- * Uses Google Cloud Vision API for high-quality text recognition
+ * OCR utility - now using Claude's built-in vision capabilities
+ * Previous Google Cloud Vision implementation moved to ocr-backup.ts
  */
-
-// Initialize Google Vision client
-const visionClient = new vision.ImageAnnotatorClient({
-  // Credentials will be loaded from environment variables
-  // GOOGLE_APPLICATION_CREDENTIALS should point to service account JSON
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-});
 
 export interface OCRResult {
   text: string;
@@ -56,74 +46,40 @@ export interface BoundingBox {
 }
 
 /**
- * Extract text from an image file
+ * Extract text from an image file using Claude's vision capabilities
+ * This is now handled directly in the analyzeDocumentWithImage function
  */
 export async function extractTextFromImage(
   imageBuffer: Buffer,
   userId?: string
 ): Promise<OCRResult> {
-  const startTime = Date.now();
+  // For compatibility, we'll import and use Claude's document analysis
+  const { analyzeDocumentWithImage } = await import("./claude");
   
   try {
-    logger.info("Starting OCR text extraction", { userId });
-
-    // Call Google Vision API
-    const [result] = await visionClient.textDetection({
-      image: {
-        content: imageBuffer,
-      },
-    });
-
-    const detections = result.textAnnotations || [];
+    const result = await analyzeDocumentWithImage(imageBuffer, userId);
     
-    if (!detections.length) {
-      logger.warn("No text detected in image", { userId });
-      return {
-        text: "",
-        confidence: 0,
-        detectedLanguages: [],
-      };
-    }
-
-    // First detection contains the full text
-    const fullText = detections[0]?.description || "";
+    // Convert DocumentAnalysisResult to OCRResult format
+    const extractedText = [
+      ...result.names.map(n => n.text),
+      ...result.dates.map(d => d.text),
+      ...result.places.map(p => p.text)
+    ].join(' ');
     
-    // Calculate average confidence from individual words
-    const wordConfidences = detections.slice(1).map(detection => 
-      detection.confidence || 0
-    );
-    const averageConfidence = wordConfidences.length > 0 
-      ? wordConfidences.reduce((sum, conf) => sum + conf, 0) / wordConfidences.length 
-      : 0;
-
-    // Extract detected languages
-    const detectedLanguages = result.textAnnotations?.[0]?.locale 
-      ? [result.textAnnotations[0].locale]
-      : [];
-
-    const duration = Date.now() - startTime;
+    const avgConfidence = (
+      result.names.reduce((sum, n) => sum + n.confidence, 0) +
+      result.dates.reduce((sum, d) => sum + d.confidence, 0) +
+      result.places.reduce((sum, p) => sum + p.confidence, 0)
+    ) / (result.names.length + result.dates.length + result.places.length) || 0;
     
-    logger.info("OCR text extraction completed", { 
-      userId,
-      duration,
-      textLength: fullText.length,
-      confidence: averageConfidence,
-      languages: detectedLanguages,
-    });
-
     return {
-      text: fullText,
-      confidence: averageConfidence,
-      detectedLanguages,
+      text: extractedText,
+      confidence: avgConfidence,
+      detectedLanguages: ["en"], // Claude typically works in English
     };
-
   } catch (error) {
-    const duration = Date.now() - startTime;
-    logger.error("OCR text extraction failed", error as Error, {
-      userId,
-      duration,
-    });
-    throw new Error("Failed to extract text from image");
+    console.error("Claude OCR extraction failed:", error);
+    throw new Error("Failed to extract text from image using Claude");
   }
 }
 

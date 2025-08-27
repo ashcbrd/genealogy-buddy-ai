@@ -17,7 +17,27 @@ export async function POST(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id;
-    const { dnaData, ethnicity, regions, matchData } = await req.json();
+    
+    // Handle FormData from file upload
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    
+    if (!file) {
+      return NextResponse.json(
+        { error: "No DNA file provided" },
+        { status: 400 }
+      );
+    }
+
+    // Read and parse the DNA file content
+    const fileContent = await file.text();
+    
+    // For now, pass the raw file content as DNA data
+    // TODO: Add proper DNA file parsing based on file type
+    const dnaData = fileContent;
+    const ethnicity = null;
+    const regions = null;
+    const matchData = null;
 
     if (!dnaData && !ethnicity && !regions) {
       return NextResponse.json(

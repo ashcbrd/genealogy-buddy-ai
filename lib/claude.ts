@@ -93,7 +93,27 @@ const SYSTEM_PROMPTS = {
     "suggestions": [string]
   }`,
 
-  dna: `You are a genetic genealogy expert. Analyze DNA data to provide ethnicity breakdowns, migration patterns, and relationship interpretations. Include historical context for genetic populations and migration events. Return JSON with confidence scores for all interpretations.`,
+  dna: `You are a genetic genealogy expert. Analyze DNA data to provide ethnicity breakdowns, migration patterns, and relationship interpretations. Include historical context for genetic populations and migration events.
+
+CRITICAL: You MUST respond with ONLY valid JSON. No explanatory text whatsoever.
+
+Return this EXACT JSON structure:
+{
+  "ethnicity": {"European": 45.2, "Asian": 12.8, "African": 8.1},
+  "regions": ["Northwestern Europe", "British Isles", "Scandinavian Peninsula"],
+  "matches": [
+    {
+      "name": "John Smith",
+      "relationship": "2nd-3rd cousin",
+      "confidence": 85,
+      "sharedDNA": 1.2
+    }
+  ],
+  "haplogroups": {"paternal": "R1a1a", "maternal": "H1a1"},
+  "suggestions": ["Research British Isles ancestry", "Look for Scandinavian immigration records"]
+}
+
+RESPOND ONLY WITH JSON.`,
 
   tree: `You are a professional genealogist with expertise in historical accuracy and evidence-based family tree construction. You must be EXTREMELY conservative and accurate with relationship suggestions.
 
@@ -229,7 +249,13 @@ export async function analyzeDocument(
     })) as ClaudeResponse;
 
     const json = firstTextBlock(response);
-    const result: DocumentAnalysisResult = JSON.parse(json);
+    // Clean up JSON response - remove markdown code blocks if present
+    const cleanJson = json
+      .replace(/^```json\s*/, '') // Remove opening ```json
+      .replace(/```\s*$/, '')     // Remove closing ```
+      .trim();
+    
+    const result: DocumentAnalysisResult = JSON.parse(cleanJson);
 
     // Only track usage for authenticated users with database records
     if (userId) {
@@ -240,6 +266,89 @@ export async function analyzeDocument(
     console.error("Document analysis error details:", error);
     throw new Error(
       `Failed to analyze document: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+}
+
+export async function analyzeDocumentWithImage(
+  imageBuffer: Buffer,
+  userId?: string
+): Promise<DocumentAnalysisResult> {
+  try {
+    const base64Image = imageBuffer.toString('base64');
+    
+    // Detect image type from buffer header
+    let mimeType = 'image/jpeg'; // Default
+    if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50) {
+      mimeType = 'image/png';
+    } else if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) {
+      mimeType = 'image/jpeg';
+    } else if (imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49) {
+      mimeType = 'image/gif';
+    } else if (imageBuffer.subarray(8, 12).toString() === 'WEBP') {
+      mimeType = 'image/webp';
+    }
+    
+    const response = (await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      temperature: 0.3,
+      system: SYSTEM_PROMPTS.document,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mimeType,
+                data: base64Image,
+              },
+            },
+            {
+              type: "text",
+              text: "Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image and provide structured genealogical data.",
+            },
+          ],
+        },
+      ],
+    })) as ClaudeResponse;
+
+    const json = firstTextBlock(response);
+    
+    let result: DocumentAnalysisResult;
+    try {
+      // Clean up JSON response - remove markdown code blocks if present
+      const cleanJson = json
+        .replace(/^```json\s*/, '') // Remove opening ```json
+        .replace(/```\s*$/, '')     // Remove closing ```
+        .trim();
+      
+      result = JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.error("Failed to parse Claude response as JSON:", json);
+      // Return a fallback response structure
+      result = {
+        names: [],
+        dates: [],
+        places: [],
+        relationships: [],
+        suggestions: ["Unable to parse document image - please try a clearer image"]
+      };
+    }
+
+    // Only track usage for authenticated users with database records
+    if (userId) {
+      await trackUsage(userId, "DOCUMENT");
+    }
+    return result;
+  } catch (error) {
+    console.error("Document image analysis error details:", error);
+    throw new Error(
+      `Failed to analyze document image: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
@@ -267,7 +376,26 @@ export async function analyzeDNA(
     })) as ClaudeResponse;
 
     const json = firstTextBlock(response);
-    const result: DNAAnalysisResult = JSON.parse(json);
+    
+    let result: DNAAnalysisResult;
+    try {
+      // Clean up JSON response - remove markdown code blocks if present
+      const cleanJson = json
+        .replace(/^```json\s*/, '') // Remove opening ```json
+        .replace(/```\s*$/, '')     // Remove closing ```
+        .trim();
+      
+      result = JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.error("Failed to parse Claude response as JSON:", json);
+      // Return a fallback response structure
+      result = {
+        ethnicity: {},
+        regions: [],
+        matches: [],
+        suggestions: ["Unable to parse DNA data - please try uploading a different file format"]
+      };
+    }
 
     // Only track usage for authenticated users with database records
     if (userId) {
@@ -329,6 +457,12 @@ CRITICAL ACCURACY INSTRUCTIONS:
 
     // Try to clean up the response in case Claude added extra text
     let jsonString = rawResponse.trim();
+    
+    // Clean up markdown code blocks if present
+    jsonString = jsonString
+      .replace(/^```json\s*/, '') // Remove opening ```json
+      .replace(/```\s*$/, '')     // Remove closing ```
+      .trim();
 
     // If response doesn't start with {, try to find JSON within the text
     if (!jsonString.startsWith("{")) {
@@ -495,6 +629,12 @@ export async function analyzePhoto(
 
     // Try to clean up the response in case Claude added extra text
     let jsonString = rawResponse.trim();
+    
+    // Clean up markdown code blocks if present
+    jsonString = jsonString
+      .replace(/^```json\s*/, '') // Remove opening ```json
+      .replace(/```\s*$/, '')     // Remove closing ```
+      .trim();
 
     // If response doesn't start with {, try to find JSON within the text
     if (!jsonString.startsWith("{")) {
