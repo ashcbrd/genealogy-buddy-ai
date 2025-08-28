@@ -89,6 +89,16 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       apiAccess: true,
       prioritySupport: true,
     },
+    ADMIN: {
+      documents: -1, // unlimited admin access
+      dna: -1,
+      trees: -1,
+      research: -1,
+      photos: -1,
+      gedcomExport: true,
+      apiAccess: true,
+      prioritySupport: true,
+    },
   };
 
 // ----------------------

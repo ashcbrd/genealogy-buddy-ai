@@ -1,0 +1,6 @@
+scripts/
+node_modules/
+.next/
+out/
+dist/
+*.d.ts

@@ -1,4 +1,3 @@
- 
 "use client";
 
 import { useState, useCallback } from "react";
@@ -16,7 +15,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -48,12 +46,22 @@ import {
   Clock,
   FileWarning,
   ArrowLeft,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Footer } from "@/components/footer";
+import { UsageInfo } from "@/components/ui/usage-info";
+import { ToolUsageIndicator } from "@/components/ui/usage-display";
+import { useSimpleAnalysisRefresh } from "@/hooks/use-analysis-with-refresh";
+import {
+  getToolErrorMessage,
+  getFileRejectionMessage,
+} from "@/lib/error-handler";
+import { useToolAccess } from "@/hooks/use-user-status";
+import { useDocumentHistory } from "@/hooks/use-document-history";
 
-interface AnalysisResult {
+export interface AnalysisResult {
   id?: string;
   names: Array<{
     text: string;
@@ -111,9 +119,7 @@ export default function DocumentAnalyzerPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
   const [activeTab, setActiveTab] = useState("upload");
-  const [savedDocuments, setSavedDocuments] = useState<SavedDocument[]>([]);
   const [selectedDocument, setSelectedDocument] =
     useState<SavedDocument | null>(null);
   const [notes, setNotes] = useState("");
@@ -121,6 +127,21 @@ export default function DocumentAnalyzerPage() {
   const [newTag, setNewTag] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Use the document history hook
+  const { 
+    documents: savedDocuments, 
+    isLoading: documentsLoading,
+    error: documentsError,
+    deleteDocument,
+    refresh: refreshDocuments 
+  } = useDocumentHistory();
+
+  const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
+  const { usage } = useToolAccess("documents");
+  const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
+  const hasNoAccess = usage && usage.limit === 0;
+  const shouldUpgrade = isAtUsageLimit || hasNoAccess;
 
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
@@ -157,15 +178,17 @@ export default function DocumentAnalyzerPage() {
       noKeyboard: true,
     });
 
-  const analyzeDocument = async () => {
+  const handleAnalyzeAction = async () => {
     if (!file) return;
+
+    // If should upgrade, redirect to subscription
+    if (shouldUpgrade) {
+      window.location.href = "/subscription";
+      return;
+    }
+
     setIsAnalyzing(true);
     setError("");
-    setProgress(0);
-
-    const int = setInterval(() => {
-      setProgress((p) => (p >= 90 ? (clearInterval(int), 90) : p + 10));
-    }, 450);
 
     try {
       const formData = new FormData();
@@ -175,31 +198,41 @@ export default function DocumentAnalyzerPage() {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: "document",
+          status: res.status,
+          error: data.error || new Error("Analysis failed"),
+        });
+        throw new Error(errorMessage);
+      }
 
       setAnalysis(data.analysis);
-      setProgress(100);
       setActiveTab("results");
+
+      // Refresh usage data immediately after successful analysis
+      await refreshUsageAfterAnalysis();
+
+      // Refresh document history to show the new analysis
+      await refreshDocuments();
 
       toast("Analysis Complete", {
         description: "Your document has been successfully analyzed",
       });
-
-      const newDoc: SavedDocument = {
-        id: Date.now().toString(),
-        filename: file.name,
-        uploadedAt: new Date().toISOString(),
-        analysis: data.analysis,
-      };
-      setSavedDocuments((prev) => [newDoc, ...prev]);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to analyze document";
+      const msg = getToolErrorMessage({
+        toolType: "document",
+        error: err,
+      });
       setError(msg);
-      toast("Analysis Failed", { description: msg });
+      toast("Analysis Failed", {
+        description:
+          msg.length > 100
+            ? "Check the error details above for troubleshooting steps"
+            : msg,
+      });
     } finally {
       setIsAnalyzing(false);
-      setProgress(0);
     }
   };
 
@@ -268,7 +301,7 @@ export default function DocumentAnalyzerPage() {
             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
               <FileText className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                 Document Analyzer
               </h1>
@@ -277,8 +310,20 @@ export default function DocumentAnalyzerPage() {
                 documents
               </p>
             </div>
+            <div className="hidden sm:block">
+              <ToolUsageIndicator tool="documents" />
+            </div>
           </div>
         </div>
+
+        <UsageInfo tool="documents" />
+
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
@@ -308,10 +353,12 @@ export default function DocumentAnalyzerPage() {
                       },
                     })}
                     className={[
-                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
+                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift",
                       isDragActive
-                        ? "ring-heritage bg-muted/40"
-                        : "border-border hover:bg-muted/40",
+                        ? "border-primary bg-primary/5"
+                        : file
+                        ? "border-green-500 bg-green-50/50"
+                        : "border-border hover:border-primary/50 hover:bg-muted/50",
                     ].join(" ")}
                     aria-label="Document file dropzone"
                   >
@@ -372,47 +419,44 @@ export default function DocumentAnalyzerPage() {
                     <Alert variant="destructive" className="mt-4">
                       <FileWarning className="h-4 w-4" />
                       <AlertDescription>
-                        Unsupported file. Use PNG/JPG/GIF/TIFF/WEBP or PDF under
-                        10MB.
+                        <div className="space-y-2">
+                          <p className="font-medium">Document Upload Error</p>
+                          <p>
+                            {getFileRejectionMessage(
+                              "document",
+                              fileRejections[0].errors[0]
+                            )}
+                          </p>
+                          <p className="text-sm opacity-90">
+                            💡 Tip: For best results, use high-resolution scans
+                            (300+ DPI) with clear text and good contrast.
+                          </p>
+                        </div>
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  {error && (
-                    <Alert variant="destructive" className="mt-4">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {isAnalyzing && (
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Analyzing document…</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <Progress value={progress} className="h-2" />
-                    </div>
-                  )}
-
-                  <Button
-                    className="w-full mt-4"
-                    onClick={analyzeDocument}
-                    disabled={!file || isAnalyzing}
-                    size="lg"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Analyzing…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Analyze Document
-                      </>
-                    )}
-                  </Button>
+                  <div className="pt-4 border-t">
+                    <Button
+                      onClick={handleAnalyzeAction}
+                      disabled={!file || isAnalyzing}
+                      className="w-full hover-lift"
+                      size="lg"
+                    >
+                      {isAnalyzing ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : shouldUpgrade ? (
+                        <Crown className="mr-2 h-5 w-5" />
+                      ) : (
+                        <Sparkles className="mr-2 h-5 w-5" />
+                      )}
+                      {isAnalyzing
+                        ? "Analyzing Document..."
+                        : shouldUpgrade
+                        ? "Upgrade to Analyze Document"
+                        : "Analyze Document"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -858,22 +902,11 @@ export default function DocumentAnalyzerPage() {
                       </div>
                     </div>
                     <Button
-                      onClick={() => {
-                        if (!selectedDocument) return;
-                        setSavedDocuments((prev) =>
-                          prev.map((d) =>
-                            d.id === selectedDocument.id
-                              ? { ...d, notes, tags }
-                              : d
-                          )
-                        );
-                        toast("Notes Saved", {
-                          description: "Your notes and tags have been saved",
-                        });
-                      }}
+                      disabled
+                      title="Notes and tags functionality coming soon"
                     >
                       <Save className="mr-2 h-4 w-4" />
-                      Save Notes
+                      Save Notes (Coming Soon)
                     </Button>
                   </CardContent>
                 </Card>
@@ -917,7 +950,19 @@ export default function DocumentAnalyzerPage() {
               </CardHeader>
 
               <CardContent>
-                {filteredDocuments.length ? (
+                {documentsError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{documentsError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                {documentsLoading ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Loading document history...</p>
+                  </div>
+                ) : filteredDocuments.length ? (
                   <ScrollArea className="h-[600px]">
                     <div className="space-y-4">
                       {filteredDocuments.map((doc) => (
@@ -950,7 +995,7 @@ export default function DocumentAnalyzerPage() {
                                       <User className="w-3 h-3" />
                                       {
                                         doc.analysis.names.filter(
-                                          (n) => n.type === "person"
+                                          (n: any) => n.type === "person"
                                         ).length
                                       }{" "}
                                       people
@@ -997,14 +1042,18 @@ export default function DocumentAnalyzerPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  setSavedDocuments((prev) =>
-                                    prev.filter((d) => d.id !== doc.id)
-                                  );
-                                  toast("Document removed", {
-                                    description: "Removed from history",
-                                  });
+                                  const success = await deleteDocument(doc.id);
+                                  if (success) {
+                                    toast("Document removed", {
+                                      description: "Removed from history",
+                                    });
+                                  } else {
+                                    toast("Failed to remove document", {
+                                      description: "Please try again",
+                                    });
+                                  }
                                 }}
                               >
                                 <Trash2 className="w-4 h-4" />

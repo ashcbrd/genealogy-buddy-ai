@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { validateApiSecurity, logSecurityEvent } from "@/lib/security";
 import { prisma } from "@/lib/prisma";
 import { SUBSCRIPTION_LIMITS } from "@/types";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Security validation with logging
+    const securityValidation = await validateApiSecurity(req, {
+      requireAuth: true,
+      checkRateLimit: true,
+      logRequest: true
+    });
+
+    if (!securityValidation.allowed) {
+      return NextResponse.json(
+        { 
+          error: securityValidation.error?.message || "Access denied",
+          code: securityValidation.error?.code
+        },
+        { status: securityValidation.error?.status || 403 }
+      );
     }
 
+    const { session, context } = securityValidation;
+    const userId = session!.user.id;
+
     const subscription = await prisma.subscription.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
       include: {
         user: {
           select: {
@@ -27,10 +40,18 @@ export async function GET(req: NextRequest) {
     });
 
     if (!subscription) {
+      // Log subscription creation for security monitoring
+      await logSecurityEvent(context, 'SUBSCRIPTION_AUTO_CREATED', {
+        resource: 'SUBSCRIPTION',
+        allowed: true,
+        reason: 'Auto-creating FREE subscription for new user',
+        metadata: { tier: 'FREE', userId }
+      });
+      
       // Create free subscription if doesn't exist
       const newSubscription = await prisma.subscription.create({
         data: {
-          userId: session.user.id,
+          userId,
           tier: "FREE",
         },
         include: {
@@ -58,9 +79,20 @@ export async function GET(req: NextRequest) {
 
     const usage = await prisma.usage.findMany({
       where: {
-        userId: session.user.id,
+        userId,
         period: currentMonth,
       },
+    });
+    
+    // Log subscription access for monitoring
+    await logSecurityEvent(context, 'SUBSCRIPTION_ACCESSED', {
+      resource: 'SUBSCRIPTION',
+      allowed: true,
+      metadata: { 
+        tier: subscription.tier, 
+        isActive: subscription.tier === "FREE" || (subscription.currentPeriodEnd && subscription.currentPeriodEnd > new Date()),
+        usageCount: usage.length
+      }
     });
 
     // Format usage data

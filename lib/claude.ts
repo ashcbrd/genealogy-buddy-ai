@@ -280,7 +280,7 @@ export async function analyzeDocumentWithImage(
     const base64Image = imageBuffer.toString('base64');
     
     // Detect image type from buffer header
-    let mimeType = 'image/jpeg'; // Default
+    let mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = 'image/jpeg'; // Default
     if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50) {
       mimeType = 'image/png';
     } else if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) {

@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { analyzeDocumentWithImage } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
+import { validateApiSecurity, validateFileUpload } from "@/lib/security";
 import { AnalysisType } from "@prisma/client";
-import { 
-  checkEnhancedAccess, 
-  recordEnhancedUsage, 
-  createEnhancedErrorResponse 
-} from "@/lib/enhanced-access-control";
 import type {
   DocumentAnalysisResult,
   JsonObject,
@@ -16,17 +10,28 @@ import type {
   JsonValue,
 } from "@/types";
 
-const DOC = "DOCUMENT";
-
 export async function POST(req: NextRequest) {
   try {
-    // Enhanced server-side access control with persistent usage tracking
-    const accessResult = await checkEnhancedAccess(req, AnalysisType.DOCUMENT);
-    if (!accessResult.hasAccess) {
-      return createEnhancedErrorResponse(accessResult);
+    // Comprehensive security validation
+    const securityValidation = await validateApiSecurity(req, {
+      requireAuth: true,
+      checkRateLimit: true,
+      logRequest: true,
+      validateUsage: { type: AnalysisType.DOCUMENT }
+    });
+
+    if (!securityValidation.allowed) {
+      return NextResponse.json(
+        { 
+          error: securityValidation.error?.message || "Access denied",
+          code: securityValidation.error?.code
+        },
+        { status: securityValidation.error?.status || 403 }
+      );
     }
 
-    const session = await getServerSession(authOptions);
+    const { session, context } = securityValidation;
+    const userId = session!.user.id;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -39,7 +44,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate file upload if file is provided
+    if (file) {
+      const fileValidation = await validateFileUpload(file, context);
+      if (!fileValidation.allowed) {
+        return NextResponse.json(
+          { error: fileValidation.reason },
+          { status: 400 }
+        );
+      }
+    }
+
     let analysis: DocumentAnalysisResult;
+    let createdDocumentId: string | null = documentId;
 
     if (file) {
       // Basic guard: handle common image types
@@ -64,12 +81,26 @@ export async function POST(req: NextRequest) {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
-      // Analyze document with Claude (OCR + analysis in one step)
-      analysis = await analyzeDocumentWithImage(buffer, session?.user?.id);
-    } else if (documentId && session?.user?.id) {
-      // Get OCR text from existing document (only for authenticated users)
+      // Create document record first
+      const savedDocument = await prisma.document.create({
+        data: {
+          userId,
+          filename: file.name,
+          storagePath: `documents/${userId}/${Date.now()}-${file.name}`, // Temporary path - would need actual storage
+          mimeType: file.type,
+          size: file.size,
+          ocrText: null, // Could extract OCR text later if needed
+        },
+      });
+      
+      createdDocumentId = savedDocument.id;
+
+      // Analyze document with Claude
+      analysis = await analyzeDocumentWithImage(buffer, userId);
+    } else if (documentId) {
+      // Get OCR text from existing document
       const document = await prisma.document.findFirst({
-        where: { id: documentId, userId: session.user.id },
+        where: { id: documentId, userId },
       });
       if (!document) {
         return NextResponse.json(
@@ -79,13 +110,7 @@ export async function POST(req: NextRequest) {
       }
       // For existing documents, fall back to text-based analysis
       const { analyzeDocument } = await import("@/lib/claude");
-      analysis = await analyzeDocument(document.ocrText ?? "", session.user.id);
-    } else if (documentId && accessResult.identity.isAnonymous) {
-      // Anonymous users cannot access saved documents
-      return NextResponse.json(
-        { error: "Saved documents are not available for anonymous users. Please sign in or upload a file directly." },
-        { status: 403 }
-      );
+      analysis = await analyzeDocument(document.ocrText ?? "", userId);
     } else {
       return NextResponse.json(
         { error: "No file or document ID provided" },
@@ -93,51 +118,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let savedAnalysis = null;
+    // Save analysis to database with document link
+    const inputJson: JsonObject = { 
+      imageAnalysis: !!file,
+      filename: file?.name || "existing document"
+    };
+    const resultJson = JSON.parse(JSON.stringify(analysis)) as JsonObject;
+    const suggestionsJson: JsonArray = analysis.suggestions;
 
-    // Save analysis to database only for authenticated users
-    if (session?.user?.id && !accessResult.identity.isAnonymous) {
-      // Prepare JSON payloads using local JSON types (compatible with Prisma Json columns)
-      const inputJson: JsonObject = { imageAnalysis: true };
-      const resultJson = JSON.parse(JSON.stringify(analysis)) as any;
-      const suggestionsJson: JsonArray = analysis.suggestions;
-
-      savedAnalysis = await prisma.analysis.create({
-        data: {
-          userId: session.user.id,
-          type: AnalysisType.DOCUMENT,
-          documentId: documentId ?? undefined,
-          input: inputJson,
-          result: resultJson,
-          confidence: analysis.names[0]?.confidence ?? 0.5,
-          suggestions: suggestionsJson,
-        },
-      });
-    }
-
-    // Record usage in server-side identity system
-    await recordEnhancedUsage(accessResult.identity.identityId, AnalysisType.DOCUMENT);
-
-    // Get updated usage info after recording
-    const updatedUsage = accessResult.usage;
-    updatedUsage.currentUsage += 1;
-    updatedUsage.remaining = Math.max(0, updatedUsage.remaining - 1);
-
-    return NextResponse.json({
-      analysis,
-      analysisId: savedAnalysis?.id,
-      identity: {
-        type: accessResult.identity.type,
-        isAnonymous: accessResult.identity.isAnonymous,
+    const savedAnalysis = await prisma.analysis.create({
+      data: {
+        userId,
+        type: AnalysisType.DOCUMENT,
+        documentId: createdDocumentId,
+        input: inputJson,
+        result: resultJson,
+        confidence: analysis.names[0]?.confidence ?? 0.5,
+        suggestions: suggestionsJson,
       },
-      usage: {
-        current: updatedUsage.currentUsage,
-        limit: updatedUsage.limit,
-        remaining: updatedUsage.remaining,
-        isAtLimit: updatedUsage.isAtLimit,
-      },
-      upgradeMessage: accessResult.upgradeMessage,
     });
+
+    // Usage tracking is handled by validateApiSecurity
+
+    // Add usage info to response headers
+    const response = NextResponse.json({
+      analysis,
+      analysisId: savedAnalysis.id,
+      documentId: createdDocumentId,
+    });
+    
+    if (securityValidation.usageValidation) {
+      response.headers.set('X-Usage-Current', securityValidation.usageValidation.currentUsage.toString());
+      response.headers.set('X-Usage-Limit', securityValidation.usageValidation.limit.toString());
+      response.headers.set('X-Usage-Remaining', securityValidation.usageValidation.remaining.toString());
+    }
+    
+    return response;
   } catch (error) {
     console.error("Document analysis error:", error);
     return NextResponse.json(

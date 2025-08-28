@@ -76,7 +76,7 @@ const PLANS = [
 export default function SubscriptionPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const { isAnonymous } = useUserStatus();
+  const { isAnonymous, isAuthenticated } = useUserStatus();
   const [subscription, setSubscription] = useState<SubscriptionData | null>(
     null
   );
@@ -85,18 +85,9 @@ export default function SubscriptionPage() {
 
   const fetchSubscriptionData = useCallback(async () => {
     try {
-      // For anonymous users, set default free tier data
-      if (!session || isAnonymous) {
-        setSubscription({
-          tier: "FREE",
-          usage: {
-            documents: 0,
-            dna: 0,
-            trees: 0,
-            research: 0,
-            photos: 0,
-          },
-        });
+      // Require authentication
+      if (!session || !isAuthenticated) {
+        setIsLoading(false);
         return;
       }
 
@@ -119,7 +110,7 @@ export default function SubscriptionPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [session, isAnonymous]);
+  }, [session, isAuthenticated]);
 
   useEffect(() => {
     fetchSubscriptionData();
@@ -127,8 +118,8 @@ export default function SubscriptionPage() {
 
   const handleUpgrade = async (tier: string) => {
     // Check if user is authenticated
-    if (!session || isAnonymous) {
-      // Redirect anonymous users to sign up with plan parameter
+    if (!session || !isAuthenticated) {
+      // Redirect unauthenticated users to sign up with plan parameter
       router.push(`/register?plan=${tier}`);
       return;
     }
@@ -164,6 +155,36 @@ export default function SubscriptionPage() {
     }
   };
 
+  // Show login prompt for unauthenticated users
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" />
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="text-center py-16">
+            <h1 className="text-4xl font-bold mb-4">Authentication Required</h1>
+            <p className="text-xl text-muted-foreground mb-8">
+              Please log in to manage your subscription and view billing information.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Link href="/login">
+                <Button size="lg">
+                  Log In
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button size="lg" variant="outline">
+                  Create Account
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -183,23 +204,6 @@ export default function SubscriptionPage() {
           </p>
         </div>
 
-        {/* Anonymous User Alert */}
-        {(!session || isAnonymous) && (
-          <Alert className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="flex flex-wrap items-center gap-2 justify-between w-full">
-              You&apos;re using tools without an account. Sign up for a free account to save your progress and unlock more features.
-              <div className="flex gap-2">
-                <Button size="sm" variant="default" asChild>
-                  <Link href="/register">Sign Up Free</Link>
-                </Button>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href="/login">Sign In</Link>
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Current Plan */}
         <Card className="mb-8">

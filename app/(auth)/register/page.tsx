@@ -38,6 +38,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { z } from "zod";
 import { SUBSCRIPTION_FEATURES } from "@/lib/constants";
+import { useSession } from "next-auth/react";
 
 // Validation schema
 const registerSchema = z
@@ -98,6 +99,16 @@ function RegisterPageContent() {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [verificationSent, setVerificationSent] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>(plan || "FREE");
+
+  const from = searchParams.get("from") || "/dashboard";
+
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      router.push(from);
+    }
+  }, [session, status, router, from]);
 
   // Update password strength when password changes
   useEffect(() => {

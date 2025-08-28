@@ -26,9 +26,15 @@ import {
   MessageCircle,
   Info,
   Lightbulb,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
+import { UsageInfo } from "@/components/ui/usage-info";
+import { ToolUsageIndicator } from "@/components/ui/usage-display";
+import { useSimpleAnalysisRefresh } from "@/hooks/use-analysis-with-refresh";
+import { getToolErrorMessage } from "@/lib/error-handler";
+import { useToolAccess } from "@/hooks/use-user-status";
 
 interface Message {
   id: string;
@@ -61,6 +67,12 @@ export default function ResearchCopilotPage() {
   const [error, setError] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
+  const { usage, canUse } = useToolAccess("research");
+  const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
+  const hasNoAccess = !canUse;
+  const shouldUpgrade = isAtUsageLimit || hasNoAccess;
+
   const scrollToNewMessage = () => {
     const root = scrollAreaRef.current;
     if (!root) return;
@@ -89,8 +101,13 @@ export default function ResearchCopilotPage() {
     scrollToNewMessage();
   }, [messages]);
 
-  const sendMessage = async () => {
+  const handleSendAction = async () => {
     if (!input.trim() || isLoading) return;
+
+    if (shouldUpgrade) {
+      window.location.href = "/subscription";
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -112,7 +129,14 @@ export default function ResearchCopilotPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get response");
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: "research",
+          status: res.status,
+          error: data.error || new Error("Failed to get response"),
+        });
+        throw new Error(errorMessage);
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,8 +146,15 @@ export default function ResearchCopilotPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
+      // Refresh usage data immediately after successful analysis
+      await refreshUsageAfterAnalysis();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      const errorMessage = getToolErrorMessage({
+        toolType: "research",
+        error: err,
+      });
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +163,7 @@ export default function ResearchCopilotPage() {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSendAction();
     }
   };
 
@@ -174,7 +205,7 @@ export default function ResearchCopilotPage() {
             <div className="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center">
               <MessageCircle className="w-6 h-6 text-cyan-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                 Research Copilot
               </h1>
@@ -182,11 +213,16 @@ export default function ResearchCopilotPage() {
                 Get expert guidance for your genealogy research journey
               </p>
             </div>
+            <div className="hidden sm:block">
+              <ToolUsageIndicator tool="research" />
+            </div>
           </div>
         </div>
 
+        <UsageInfo tool="research" />
+
         {error && (
-          <Alert className="mb-6 animate-slide-up">
+          <Alert variant="destructive" className="mb-6 animate-slide-up">
             <Info className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -287,11 +323,11 @@ export default function ResearchCopilotPage() {
                             <Bot className="w-4 h-4" />
                           </AvatarFallback>
                         </Avatar>
-                        <div className="bg-muted/50 rounded-lg px-4 py-3">
-                          <div className="flex items-center gap-2">
+                        <div className="bg-muted/50 rounded-lg px-4 py-3 min-w-[200px]">
+                          <div className="flex items-center gap-2 justify-center">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <span className="text-sm text-muted-foreground">
-                              Thinking...
+                              Researching your question...
                             </span>
                           </div>
                         </div>
@@ -314,15 +350,20 @@ export default function ResearchCopilotPage() {
                       />
                     </div>
                     <Button
-                      onClick={sendMessage}
+                      onClick={handleSendAction}
                       disabled={!input.trim() || isLoading}
                       className="hover-lift"
                     >
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : shouldUpgrade ? (
+                        <Crown className="h-4 w-4" />
                       ) : (
                         <Send className="h-4 w-4" />
                       )}
+                      <span className="ml-2 hidden sm:inline">
+                        {shouldUpgrade ? "Upgrade" : "Send"}
+                      </span>
                     </Button>
                   </div>
                 </div>

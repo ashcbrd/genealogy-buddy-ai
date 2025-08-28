@@ -3,20 +3,59 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { analyzePhoto } from "@/lib/claude";
-import { checkUsageLimit, incrementUsage } from "@/lib/utils";
-import { checkUnifiedAccess, recordUnifiedUsage, createUnifiedErrorResponse, createUnifiedSuccessResponse } from "@/lib/unified-access-control";
-import { AnalysisType } from "@prisma/client";
+import { AnalysisType, SubscriptionTier } from "@prisma/client";
+import { SUBSCRIPTION_LIMITS, type PhotoAnalysisResult } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
-    // Check unified access control (works for both anonymous and authenticated users)
-    const accessResult = await checkUnifiedAccess(req, AnalysisType.PHOTO);
-    if (!accessResult.hasAccess) {
-      return createUnifiedErrorResponse(accessResult);
+    // Require authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in to use this feature." },
+        { status: 401 }
+      );
     }
 
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
+    const userId = session.user.id;
+    
+    // Check usage limits
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId },
+    });
+    
+    const tier = subscription?.tier || SubscriptionTier.FREE;
+    const limits = SUBSCRIPTION_LIMITS[tier];
+    
+    if (limits.photos === 0) {
+      return NextResponse.json(
+        { error: "Photo analysis is not available in your plan. Please upgrade to access this feature." },
+        { status: 402 }
+      );
+    }
+    
+    // Check current usage if not unlimited
+    if (limits.photos !== -1) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      
+      const currentUsage = await prisma.analysis.count({
+        where: {
+          userId,
+          type: AnalysisType.PHOTO,
+          createdAt: { gte: startOfMonth },
+          deletedAt: null,
+        },
+      });
+      
+      if (currentUsage >= limits.photos) {
+        return NextResponse.json(
+          { error: `You have reached your monthly limit of ${limits.photos} photo analyses. Please upgrade your plan or wait until next month.` },
+          { status: 429 }
+        );
+      }
+    }
     const { photoId, photoDescription, imageData, mimeType, fileName, additionalContext } = await req.json();
 
     if (!photoId && !photoDescription && !imageData) {
@@ -39,7 +78,7 @@ export async function POST(req: NextRequest) {
       };
     }
     // Handle saved photo from database (existing flow)
-    else if (photoId && userId) {
+    else if (photoId) {
       photo = await prisma.photo.findFirst({
         where: {
           id: photoId,
@@ -75,11 +114,6 @@ export async function POST(req: NextRequest) {
       imageAnalysisData = {
         textDescription: analysisDescription
       };
-    } else if (photoId && !userId) {
-      return NextResponse.json(
-        { error: "Saved photos are not available for anonymous users. Please sign in or provide image data directly." },
-        { status: 403 }
-      );
     }
 
     // Ensure we have analysis data
@@ -93,57 +127,70 @@ export async function POST(req: NextRequest) {
     // Analyze with Claude (now supports both image and text)
     const result = await analyzePhoto(imageAnalysisData, userId);
 
-    // Save analysis to database (only for authenticated users)
-    let analysisId = null;
-    if (userId) {
-      const analysis = await prisma.analysis.create({
+    // Save analysis to database
+    const analysis = await prisma.analysis.create({
+      data: {
+        userId,
+        type: AnalysisType.PHOTO,
+        input: {
+          photoId,
+          description: imageAnalysisData.textDescription || imageAnalysisData.fileName || 'Image analysis',
+          additionalContext: imageAnalysisData.additionalContext,
+        },
+        result: JSON.parse(JSON.stringify(result)) as any,
+        confidence: (result as any).dateEstimate?.confidence || 0.7,
+        suggestions: (result as any).suggestions || [],
+        claudeTokensUsed: 0,
+      },
+    });
+
+    // Update photo with analysis results if photo exists
+    if (photo) {
+      await prisma.photo.update({
+        where: { id: photo.id },
         data: {
-          userId,
-          type: "PHOTO",
-          input: {
-            photoId,
-            description: imageAnalysisData.textDescription || imageAnalysisData.fileName || 'Image analysis',
-            additionalContext: imageAnalysisData.additionalContext,
+          story: (result as PhotoAnalysisResult).story || null,
+          historicalContext: (result as PhotoAnalysisResult).historicalContext || null,
+          dateSuggestion: (result as PhotoAnalysisResult).dateEstimate?.period || null,
+          metadata: {
+            ...((photo.metadata as Record<string, unknown>) || {}),
+            lastAnalyzed: new Date().toISOString(),
+            analysisId: analysis.id,
           },
-          result: result as any,
-          confidence: (result as any).confidence || 0.7,
-          suggestions: (result as any).suggestions || [],
-          claudeTokensUsed: 0, // Will be updated by Claude usage tracking
         },
       });
-      analysisId = analysis.id;
-
-      // Update photo with analysis results if photo exists
-      if (photo) {
-        await prisma.photo.update({
-          where: { id: photo.id },
-          data: {
-            story: (result as any).story || null,
-            historicalContext: (result as any).historicalContext || null,
-            dateSuggestion: (result as any).dateSuggestion || null,
-            metadata: {
-              ...((photo.metadata as Record<string, unknown>) || {}),
-              lastAnalyzed: new Date().toISOString(),
-              analysisId: analysisId,
-            },
-          },
-        });
-      }
-
-      // Legacy usage tracking for authenticated users
-      await incrementUsage(userId, "PHOTO");
     }
 
-    // Record unified usage (works for both anonymous and authenticated)
-    await recordUnifiedUsage(accessResult.identity.identityId, AnalysisType.PHOTO);
+    // Record usage
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    await prisma.usage.upsert({
+      where: {
+        userId_type_period: {
+          userId,
+          type: AnalysisType.PHOTO,
+          period: startOfMonth,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      create: {
+        userId,
+        type: AnalysisType.PHOTO,
+        count: 1,
+        period: startOfMonth,
+      },
+    });
 
-    // Return unified response with usage info
-    return await createUnifiedSuccessResponse({
+    return NextResponse.json({
       success: true,
-      analysisId,
+      analysisId: analysis.id,
       analysis: result,
       photoUpdated: !!photo,
-    }, accessResult);
+    });
 
   } catch (error) {
     console.error("Photo analysis error:", error);

@@ -5,6 +5,8 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
+import { useUserStatus, useUsageData } from "@/hooks/use-user-status";
+import { AlertTriangle } from "lucide-react";
 
 interface NavigationProps {
   variant?: "landing" | "dashboard";
@@ -12,6 +14,17 @@ interface NavigationProps {
 
 export function Navigation({ variant = "landing" }: NavigationProps) {
   const { data: session } = useSession();
+  const { tier, isAuthenticated } = useUserStatus();
+  const { data: usageData } = useUsageData();
+
+  // Check if user has any limits reached or near limits
+  const hasLimitReached = usageData ? Object.values(usageData.usage).some(
+    usage => !usage.unlimited && usage.used >= usage.limit
+  ) : false;
+  
+  const hasWarnings = usageData ? Object.values(usageData.usage).some(
+    usage => !usage.unlimited && usage.limit > 0 && (usage.used / usage.limit) >= 0.8
+  ) : false;
 
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-sm bg-background/80 border-b border-border/50">
@@ -28,18 +41,6 @@ export function Navigation({ variant = "landing" }: NavigationProps) {
 
           <div className="flex items-center space-x-4">
             <ThemeToggle />
-            <Button variant="ghost" asChild>
-              <Link href="/tools">Try Tools</Link>
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link href="/subscription">Pricing</Link>
-            </Button>
-            {/* Anonymous User Indicator */}
-            {!session && variant === "dashboard" && (
-              <Badge variant="secondary" className="hidden sm:flex">
-                Free Trial
-              </Badge>
-            )}
 
             {/* Landing Page - No Session */}
             {variant === "landing" && !session && (
@@ -69,8 +70,21 @@ export function Navigation({ variant = "landing" }: NavigationProps) {
                 )}
                 {session && (
                   <>
-                    <Button variant="ghost" asChild>
-                      <Link href="/subscription">Subscription</Link>
+                    <Button variant="ghost" asChild className="relative">
+                      <Link href="/subscription" className="flex items-center gap-2">
+                        Subscription
+                        {hasLimitReached && (
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                        )}
+                        {hasWarnings && !hasLimitReached && (
+                          <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        )}
+                        {tier && tier !== 'FREE' && (
+                          <Badge variant="secondary" className="ml-1 text-xs">
+                            {tier.charAt(0) + tier.slice(1).toLowerCase()}
+                          </Badge>
+                        )}
+                      </Link>
                     </Button>
                     <Button variant="ghost" asChild>
                       <Link href="/profile">Profile</Link>

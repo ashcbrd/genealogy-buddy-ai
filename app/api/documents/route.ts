@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
               id: true,
               type: true,
               confidence: true,
+              result: true,
+              suggestions: true,
               createdAt: true,
             },
           },

@@ -25,9 +25,15 @@ import {
   Calendar,
   MapPin,
   Info,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import type { ExpandTreeResponse, FamilyMember, NewMemberForm } from "@/types";
+import { UsageInfo } from "@/components/ui/usage-info";
+import { ToolUsageIndicator } from "@/components/ui/usage-display";
+import { useSimpleAnalysisRefresh } from "@/hooks/use-analysis-with-refresh";
+import { getToolErrorMessage } from "@/lib/error-handler";
+import { useToolAccess } from "@/hooks/use-user-status";
 
 export default function TreeBuilderPage() {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -38,6 +44,12 @@ export default function TreeBuilderPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [treeName, setTreeName] = useState("My Family Tree");
   const [error, setError] = useState("");
+
+  const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
+  const { usage, canUse } = useToolAccess("trees");
+  const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
+  const hasNoAccess = !canUse;
+  const shouldUpgrade = isAtUsageLimit || hasNoAccess;
 
   const [formData, setFormData] = useState<NewMemberForm>({
     firstName: "",
@@ -73,8 +85,13 @@ export default function TreeBuilderPage() {
     });
   };
 
-  const handleAIExpansion = async (): Promise<void> => {
+  const handleAIExpandAction = async (): Promise<void> => {
     if (familyMembers.length === 0) return;
+
+    if (shouldUpgrade) {
+      window.location.href = "/subscription";
+      return;
+    }
 
     setIsExpanding(true);
     setError("");
@@ -89,9 +106,16 @@ export default function TreeBuilderPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to expand tree");
-
-      const data: ExpandTreeResponse = await res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: "tree",
+          operation: "AI expansion",
+          status: res.status,
+          error: data.error || new Error("Failed to expand tree"),
+        });
+        throw new Error(errorMessage);
+      }
 
       const newMembers: FamilyMember[] = data.suggestedMembers.map(
         (member: FamilyMember) => ({
@@ -101,9 +125,16 @@ export default function TreeBuilderPage() {
       );
 
       setFamilyMembers((prev) => [...prev, ...newMembers]);
+
+      // Refresh usage data immediately after successful analysis
+      await refreshUsageAfterAnalysis();
     } catch (error) {
-      setError("Failed to expand tree with AI suggestions. Please try again.");
-      console.error("Error expanding tree:", error);
+      const errorMessage = getToolErrorMessage({
+        toolType: "tree",
+        operation: "AI expansion",
+        error,
+      });
+      setError(errorMessage);
     } finally {
       setIsExpanding(false);
     }
@@ -123,10 +154,23 @@ export default function TreeBuilderPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to save tree");
+      const data = await res.json();
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: "tree",
+          operation: "saving",
+          status: res.status,
+          error: data.error || new Error("Failed to save tree"),
+        });
+        throw new Error(errorMessage);
+      }
     } catch (error) {
-      setError("Failed to save tree. Please try again.");
-      console.error("Error saving tree:", error);
+      const errorMessage = getToolErrorMessage({
+        toolType: "tree",
+        operation: "saving",
+        error,
+      });
+      setError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -140,7 +184,16 @@ export default function TreeBuilderPage() {
         body: JSON.stringify({ members: familyMembers }),
       });
 
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) {
+        const data = await res.json();
+        const errorMessage = getToolErrorMessage({
+          toolType: "tree",
+          operation: "exporting",
+          status: res.status,
+          error: data.error || new Error("Export failed"),
+        });
+        throw new Error(errorMessage);
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -150,8 +203,12 @@ export default function TreeBuilderPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setError("Failed to export tree. Please try again.");
-      console.error("Error exporting GEDCOM:", error);
+      const errorMessage = getToolErrorMessage({
+        toolType: "tree",
+        operation: "exporting",
+        error,
+      });
+      setError(errorMessage);
     }
   };
 
@@ -176,7 +233,7 @@ export default function TreeBuilderPage() {
             <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
               <TreePine className="w-6 h-6 text-green-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                 Family Tree Builder
               </h1>
@@ -184,11 +241,16 @@ export default function TreeBuilderPage() {
                 Build and expand your family tree with AI-powered suggestions
               </p>
             </div>
+            <div className="hidden sm:block">
+              <ToolUsageIndicator tool="trees" />
+            </div>
           </div>
         </div>
 
+        <UsageInfo tool="trees" />
+
         {error && (
-          <Alert className="mb-6 animate-slide-up">
+          <Alert variant="destructive" className="mb-6 animate-slide-up">
             <Info className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -205,14 +267,18 @@ export default function TreeBuilderPage() {
                       View and manage your family tree members
                     </CardDescription>
                   </div>
-                  <Badge variant="outline">{familyMembers.length} members</Badge>
+                  <Badge variant="outline">
+                    {familyMembers.length} members
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="mb-6 p-4 bg-muted/30 rounded-lg border border-border/50">
                   <div className="flex items-center justify-between mb-3">
                     <div className="space-y-1">
-                      <Label htmlFor="treeName" className="text-sm font-medium">Tree Name</Label>
+                      <Label htmlFor="treeName" className="text-sm font-medium">
+                        Tree Name
+                      </Label>
                       <Input
                         id="treeName"
                         value={treeName}
@@ -225,16 +291,22 @@ export default function TreeBuilderPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleAIExpansion}
+                        onClick={handleAIExpandAction}
                         disabled={isExpanding || familyMembers.length === 0}
                         className="hover-lift"
                       >
                         {isExpanding ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : shouldUpgrade ? (
+                          <Crown className="mr-2 h-4 w-4" />
                         ) : (
                           <Sparkles className="mr-2 h-4 w-4" />
                         )}
-                        AI Expand
+                        {isExpanding
+                          ? "Expanding..."
+                          : shouldUpgrade
+                          ? "Upgrade to Expand"
+                          : "AI Expand"}
                       </Button>
                       <Button
                         variant="outline"
@@ -250,9 +322,9 @@ export default function TreeBuilderPage() {
                         )}
                         Save Tree
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="hover-lift"
                         onClick={handleExport}
                         disabled={familyMembers.length === 0}
@@ -262,6 +334,15 @@ export default function TreeBuilderPage() {
                       </Button>
                     </div>
                   </div>
+
+                  {(isExpanding || isSaving) && (
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {isExpanding
+                        ? "Expanding family tree with AI..."
+                        : "Saving family tree..."}
+                    </div>
+                  )}
                 </div>
 
                 {familyMembers.length > 0 ? (
@@ -286,7 +367,10 @@ export default function TreeBuilderPage() {
                                 {member.firstName} {member.lastName}
                               </h4>
                               {member.aiGenerated && (
-                                <Badge variant="secondary" className="text-xs mt-1">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs mt-1"
+                                >
                                   AI Generated
                                 </Badge>
                               )}
@@ -297,31 +381,47 @@ export default function TreeBuilderPage() {
                           {member.relationshipToUser && (
                             <div className="flex items-center gap-2">
                               <User className="h-3.5 w-3.5" />
-                              <span className="font-medium text-primary truncate">{member.relationshipToUser}</span>
+                              <span className="font-medium text-primary truncate">
+                                {member.relationshipToUser}
+                              </span>
                             </div>
                           )}
                           {member.birthDate && (
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5" />
-                              <span>Born: {member.birthDate.includes('-') ? new Date(member.birthDate).getFullYear() : member.birthDate}</span>
+                              <span>
+                                Born:{" "}
+                                {member.birthDate.includes("-")
+                                  ? new Date(member.birthDate).getFullYear()
+                                  : member.birthDate}
+                              </span>
                             </div>
                           )}
                           {member.deathDate && (
                             <div className="flex items-center gap-2">
                               <Calendar className="h-3.5 w-3.5" />
-                              <span>Died: {member.deathDate.includes('-') ? new Date(member.deathDate).getFullYear() : member.deathDate}</span>
+                              <span>
+                                Died:{" "}
+                                {member.deathDate.includes("-")
+                                  ? new Date(member.deathDate).getFullYear()
+                                  : member.deathDate}
+                              </span>
                             </div>
                           )}
                           {member.birthPlace && (
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3.5 w-3.5" />
-                              <span className="truncate">Born in {member.birthPlace}</span>
+                              <span className="truncate">
+                                Born in {member.birthPlace}
+                              </span>
                             </div>
                           )}
                           {member.deathPlace && (
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3.5 w-3.5" />
-                              <span className="truncate">Died in {member.deathPlace}</span>
+                              <span className="truncate">
+                                Died in {member.deathPlace}
+                              </span>
                             </div>
                           )}
                         </div>
@@ -333,7 +433,9 @@ export default function TreeBuilderPage() {
                     <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                       <TreePine className="w-8 h-8 text-muted-foreground" />
                     </div>
-                    <h3 className="font-medium text-foreground mb-2">No family members yet</h3>
+                    <h3 className="font-medium text-foreground mb-2">
+                      No family members yet
+                    </h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       Add your first family member to get started
                     </p>
@@ -354,7 +456,9 @@ export default function TreeBuilderPage() {
               <CardContent className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-sm font-medium">First Name</Label>
+                    <Label htmlFor="firstName" className="text-sm font-medium">
+                      First Name
+                    </Label>
                     <Input
                       id="firstName"
                       value={formData.firstName}
@@ -366,7 +470,9 @@ export default function TreeBuilderPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-sm font-medium">Last Name</Label>
+                    <Label htmlFor="lastName" className="text-sm font-medium">
+                      Last Name
+                    </Label>
                     <Input
                       id="lastName"
                       value={formData.lastName}
@@ -381,7 +487,9 @@ export default function TreeBuilderPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="birthDate" className="text-sm font-medium">Birth Date</Label>
+                    <Label htmlFor="birthDate" className="text-sm font-medium">
+                      Birth Date
+                    </Label>
                     <Input
                       id="birthDate"
                       type="date"
@@ -393,7 +501,9 @@ export default function TreeBuilderPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="deathDate" className="text-sm font-medium">Death Date</Label>
+                    <Label htmlFor="deathDate" className="text-sm font-medium">
+                      Death Date
+                    </Label>
                     <Input
                       id="deathDate"
                       type="date"
@@ -408,7 +518,9 @@ export default function TreeBuilderPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="birthPlace" className="text-sm font-medium">Birth Place</Label>
+                    <Label htmlFor="birthPlace" className="text-sm font-medium">
+                      Birth Place
+                    </Label>
                     <Input
                       id="birthPlace"
                       value={formData.birthPlace}
@@ -420,7 +532,9 @@ export default function TreeBuilderPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="deathPlace" className="text-sm font-medium">Death Place</Label>
+                    <Label htmlFor="deathPlace" className="text-sm font-medium">
+                      Death Place
+                    </Label>
                     <Input
                       id="deathPlace"
                       value={formData.deathPlace}
@@ -472,7 +586,7 @@ export default function TreeBuilderPage() {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="space-y-3 text-sm">
                       {selectedMember.relationshipToUser && (
                         <div className="flex items-center justify-between py-2 border-b border-border/50">
@@ -480,7 +594,9 @@ export default function TreeBuilderPage() {
                             <User className="h-3.5 w-3.5" />
                             Relationship:
                           </span>
-                          <span className="font-medium text-primary">{selectedMember.relationshipToUser}</span>
+                          <span className="font-medium text-primary">
+                            {selectedMember.relationshipToUser}
+                          </span>
                         </div>
                       )}
                       {selectedMember.birthDate && (
@@ -490,8 +606,10 @@ export default function TreeBuilderPage() {
                             Birth Date:
                           </span>
                           <span className="font-medium">
-                            {selectedMember.birthDate.includes('-') 
-                              ? new Date(selectedMember.birthDate).toLocaleDateString() 
+                            {selectedMember.birthDate.includes("-")
+                              ? new Date(
+                                  selectedMember.birthDate
+                                ).toLocaleDateString()
                               : selectedMember.birthDate}
                           </span>
                         </div>
@@ -503,8 +621,10 @@ export default function TreeBuilderPage() {
                             Death Date:
                           </span>
                           <span className="font-medium">
-                            {selectedMember.deathDate.includes('-') 
-                              ? new Date(selectedMember.deathDate).toLocaleDateString() 
+                            {selectedMember.deathDate.includes("-")
+                              ? new Date(
+                                  selectedMember.deathDate
+                                ).toLocaleDateString()
                               : selectedMember.deathDate}
                           </span>
                         </div>
@@ -515,7 +635,9 @@ export default function TreeBuilderPage() {
                             <MapPin className="h-3.5 w-3.5" />
                             Birth Place:
                           </span>
-                          <span className="font-medium">{selectedMember.birthPlace}</span>
+                          <span className="font-medium">
+                            {selectedMember.birthPlace}
+                          </span>
                         </div>
                       )}
                       {selectedMember.deathPlace && (
@@ -524,12 +646,16 @@ export default function TreeBuilderPage() {
                             <MapPin className="h-3.5 w-3.5" />
                             Death Place:
                           </span>
-                          <span className="font-medium">{selectedMember.deathPlace}</span>
+                          <span className="font-medium">
+                            {selectedMember.deathPlace}
+                          </span>
                         </div>
                       )}
                       {selectedMember.confidence && (
                         <div className="flex items-center justify-between py-2">
-                          <span className="text-muted-foreground">Confidence:</span>
+                          <span className="text-muted-foreground">
+                            Confidence:
+                          </span>
                           <Badge variant="outline">
                             {Math.round(selectedMember.confidence * 100)}%
                           </Badge>

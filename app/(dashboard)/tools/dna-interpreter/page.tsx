@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +28,7 @@ import {
   ArrowLeft,
   FileText,
   BarChart3,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -41,6 +41,11 @@ import {
 } from "recharts";
 import type { DNAAnalysisUI, DNATabKey } from "@/types";
 import { Footer } from "@/components/footer";
+import { UsageInfo } from "@/components/ui/usage-info";
+import { ToolUsageIndicator } from "@/components/ui/usage-display";
+import { useSimpleAnalysisRefresh } from "@/hooks/use-analysis-with-refresh";
+import { getToolErrorMessage, getFileRejectionMessage } from "@/lib/error-handler";
+import { useToolAccess } from "@/hooks/use-user-status";
 
 const COLOR_TOKENS = [
   "var(--chart-1)",
@@ -59,6 +64,12 @@ export default function DNAInterpreterPage() {
   const [analysis, setAnalysis] = useState<DNAAnalysisUI | null>(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<DNATabKey>("ethnicity");
+
+  const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
+  const { usage } = useToolAccess('dna');
+  const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
+  const hasNoAccess = usage && usage.limit === 0;
+  const shouldUpgrade = isAtUsageLimit || hasNoAccess;
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -80,8 +91,14 @@ export default function DNAInterpreterPage() {
       multiple: false,
     });
 
-  const analyzeDNA = async () => {
+  const handleAnalyzeAction = async () => {
     if (!file) return;
+    
+    // If should upgrade, redirect to subscription
+    if (shouldUpgrade) {
+      window.location.href = '/subscription';
+      return;
+    }
 
     setIsAnalyzing(true);
     setError("");
@@ -96,13 +113,26 @@ export default function DNAInterpreterPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: 'dna',
+          status: res.status,
+          error: data.error || new Error("Analysis failed")
+        });
+        throw new Error(errorMessage);
+      }
+      
       setAnalysis(data.analysis);
       setActiveTab("ethnicity");
+
+      // Refresh usage data immediately after successful analysis
+      await refreshUsageAfterAnalysis();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to analyze DNA data"
-      );
+      const errorMessage = getToolErrorMessage({
+        toolType: 'dna',
+        error: err
+      });
+      setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }
@@ -142,7 +172,7 @@ export default function DNAInterpreterPage() {
             <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
               <Dna className="w-6 h-6 text-purple-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                 DNA & Heritage Interpreter
               </h1>
@@ -150,11 +180,16 @@ export default function DNAInterpreterPage() {
                 Upload your raw DNA data to discover your ancestry and heritage
               </p>
             </div>
+            <div className="hidden sm:block">
+              <ToolUsageIndicator tool="dna" />
+            </div>
           </div>
         </div>
 
+        <UsageInfo tool="dna" />
+
         {error && (
-          <Alert className="mb-6 animate-slide-up">
+          <Alert variant="destructive" className="mb-6 animate-slide-up">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -217,27 +252,44 @@ export default function DNAInterpreterPage() {
                   </div>
 
                   {fileRejections.length > 0 && (
-                    <Alert className="mt-4">
+                    <Alert variant="destructive" className="mt-4">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        {fileRejections[0].errors[0].message}
+                        <div className="space-y-2">
+                          <p className="font-medium">File Upload Error</p>
+                          <p>
+                            {getFileRejectionMessage('dna', fileRejections[0].errors[0])}
+                          </p>
+                          <p className="text-sm opacity-90">
+                            Need help? Check our support guide for DNA file preparation tips.
+                          </p>
+                        </div>
                       </AlertDescription>
                     </Alert>
                   )}
 
+                  {isAnalyzing && (
+                    <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing DNA data…
+                    </div>
+                  )}
+
                   <div className="mt-6 pt-4 border-t">
                     <Button
-                      onClick={analyzeDNA}
+                      onClick={handleAnalyzeAction}
                       disabled={!file || isAnalyzing}
-                      className="w-full hover-lift"
+                      className={`w-full hover-lift ${shouldUpgrade ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
                       size="lg"
                     >
                       {isAnalyzing ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : shouldUpgrade ? (
+                        <Crown className="mr-2 h-5 w-5" />
                       ) : (
                         <Dna className="mr-2 h-5 w-5" />
                       )}
-                      {isAnalyzing ? "Analyzing DNA..." : "Analyze DNA"}
+                      {isAnalyzing ? "Analyzing DNA..." : shouldUpgrade ? "Upgrade to Analyze DNA" : "Analyze DNA"}
                     </Button>
                   </div>
                 </CardContent>
@@ -478,10 +530,6 @@ export default function DNAInterpreterPage() {
                                     {item.percentage}%
                                   </Badge>
                                 </div>
-                                <Progress
-                                  value={item.percentage}
-                                  className="h-2"
-                                />
                               </div>
                             ))}
                           </div>

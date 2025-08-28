@@ -116,7 +116,7 @@ export async function deleteFile(bucket: string, paths: string | string[]) {
 export function subscribeToChanges(
   table: string,
   filter?: string,
-  callback?: (payload: any) => void
+  callback?: (payload: Record<string, unknown>) => void
 ) {
   const channel = supabase
     .channel(`${table}-changes`)

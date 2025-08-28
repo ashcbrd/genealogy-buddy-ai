@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma, withTransaction } from "@/lib/prisma";
+import type { FamilyMember } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Create/recreate individuals
-      const individualData = individuals.map((individual: any) => ({
+      const individualData = individuals.map((individual: FamilyMember) => ({
         treeId: familyTree.id,
         firstName: individual.firstName || null,
         lastName: individual.lastName || null,

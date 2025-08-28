@@ -51,6 +51,8 @@ import {
   type UsageTrend,
 } from "@/types";
 import { Footer } from "@/components/footer";
+import { UsageDisplay } from "@/components/ui/usage-display";
+import { useUsageData } from "@/hooks/use-user-status";
 
 const TOOL_COLORS = {
   documents: "var(--chart-1)",
@@ -62,6 +64,7 @@ const TOOL_COLORS = {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const { data: usageData } = useUsageData();
   const [stats, setStats] = useState<DashboardStats>({
     documentsAnalyzed: 0,
     treesBuilt: 0,
@@ -71,13 +74,6 @@ export default function DashboardPage() {
     totalAnalyses: 0,
     accountAge: 0,
     lastActive: new Date().toISOString(),
-  });
-  const [usage, setUsage] = useState<UsageCounters>({
-    documents: { used: 0, limit: 2 },
-    trees: { used: 0, limit: 1 },
-    dna: { used: 0, limit: 0 },
-    photos: { used: 0, limit: 0 },
-    research: { used: 0, limit: 5 },
   });
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [usageTrends, setUsageTrends] = useState<UsageTrend[]>([]);
@@ -103,7 +99,7 @@ export default function DashboardPage() {
       const subData = await subRes.json();
 
       setStats(statsData.stats);
-      setUsage(statsData.usage);
+      // Usage now comes from the real-time useUsageData hook
       setRecentActivity(activityData.activities || []);
       setUsageTrends(trendsData.trends || []);
       setSubscription(subData);
@@ -134,7 +130,7 @@ export default function DashboardPage() {
     },
   ].filter((i) => i.value > 0);
 
-  if (isLoading) {
+  if (isLoading || !usageData) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <div className="text-center">
@@ -163,8 +159,8 @@ export default function DashboardPage() {
       description: "Extract names, dates, places",
       icon: <FileText className="w-4 h-4" />,
       tone: TOOL_COLORS.documents,
-      used: usage?.documents?.used ?? 0,
-      limit: usage?.documents?.limit ?? 2,
+      used: usageData?.usage?.documents?.used ?? 0,
+      limit: usageData?.usage?.documents?.limit ?? 2,
     },
     {
       key: "dna",
@@ -173,8 +169,8 @@ export default function DashboardPage() {
       description: "Explore matches & segments",
       icon: <Dna className="w-4 h-4" />,
       tone: TOOL_COLORS.dna,
-      used: usage?.dna?.used ?? 0,
-      limit: usage?.dna?.limit ?? 0,
+      used: usageData?.usage?.dna?.used ?? 0,
+      limit: usageData?.usage?.dna?.limit ?? 0,
     },
     {
       key: "trees",
@@ -183,8 +179,8 @@ export default function DashboardPage() {
       description: "Assemble your pedigree",
       icon: <TreePine className="w-4 h-4" />,
       tone: TOOL_COLORS.trees,
-      used: usage?.trees?.used ?? 0,
-      limit: usage?.trees?.limit ?? 1,
+      used: usageData?.usage?.trees?.used ?? 0,
+      limit: usageData?.usage?.trees?.limit ?? 1,
     },
     {
       key: "research",
@@ -193,8 +189,8 @@ export default function DashboardPage() {
       description: "Ask context-aware questions",
       icon: <MessageCircle className="w-4 h-4" />,
       tone: TOOL_COLORS.research,
-      used: usage?.research?.used ?? 0,
-      limit: usage?.research?.limit ?? 5,
+      used: usageData?.usage?.research?.used ?? 0,
+      limit: usageData?.usage?.research?.limit ?? 5,
     },
     {
       key: "photos",
@@ -203,8 +199,8 @@ export default function DashboardPage() {
       description: "Identify faces & stories",
       icon: <Camera className="w-4 h-4" />,
       tone: TOOL_COLORS.photos,
-      used: usage?.photos?.used ?? 0,
-      limit: usage?.photos?.limit ?? 0,
+      used: usageData?.usage?.photos?.used ?? 0,
+      limit: usageData?.usage?.photos?.limit ?? 0,
     },
   ] as const;
 
@@ -309,36 +305,36 @@ export default function DashboardPage() {
               <CardContent className="grid gap-4">
                 <UsageCapsule
                   label="Document Analyses"
-                  used={usage?.documents?.used ?? 0}
-                  limit={usage?.documents?.limit ?? 2}
+                  used={usageData?.usage?.documents?.used ?? 0}
+                  limit={usageData?.usage?.documents?.limit ?? 2}
                   icon={<FileText className="w-4 h-4" />}
                   barColor="bg-blue-500"
                 />
                 <UsageCapsule
                   label="DNA Analyses"
-                  used={usage?.dna?.used ?? 0}
-                  limit={usage?.dna?.limit ?? 0}
+                  used={usageData?.usage?.dna?.used ?? 0}
+                  limit={usageData?.usage?.dna?.limit ?? 0}
                   icon={<Dna className="w-4 h-4" />}
                   barColor="bg-purple-500"
                 />
                 <UsageCapsule
                   label="Family Trees"
-                  used={usage?.trees?.used ?? 0}
-                  limit={usage?.trees?.limit ?? 1}
+                  used={usageData?.usage?.trees?.used ?? 0}
+                  limit={usageData?.usage?.trees?.limit ?? 1}
                   icon={<TreePine className="w-4 h-4" />}
                   barColor="bg-green-500"
                 />
                 <UsageCapsule
                   label="Photo Analyses"
-                  used={usage?.photos?.used ?? 0}
-                  limit={usage?.photos?.limit ?? 0}
+                  used={usageData?.usage?.photos?.used ?? 0}
+                  limit={usageData?.usage?.photos?.limit ?? 0}
                   icon={<Camera className="w-4 h-4" />}
                   barColor="bg-orange-500"
                 />
                 <UsageCapsule
                   label="Research Questions"
-                  used={usage?.research?.used ?? 0}
-                  limit={usage?.research?.limit ?? 5}
+                  used={usageData?.usage?.research?.used ?? 0}
+                  limit={usageData?.usage?.research?.limit ?? 5}
                   icon={<MessageCircle className="w-4 h-4" />}
                   barColor="bg-cyan-500"
                 />
@@ -587,6 +583,9 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Usage Display */}
+            <UsageDisplay />
           </div>
         </div>
       </div>

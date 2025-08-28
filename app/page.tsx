@@ -33,25 +33,25 @@ export default function Home() {
           <div className="max-w-4xl mx-auto">
             <Badge variant="clean" className="mb-6 animate-bounce-gentle">
               <Sparkles className="w-4 h-4 mr-2" />
-              AI-Powered Genealogy Research
+              AI for Genealogy & Family History
             </Badge>
 
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight text-foreground">
-              Your AI Research
-              <span className="block text-primary">Buddy Awaits</span>
+              Break Through Your
+              <span className="block text-primary">Genealogy Brick Walls</span>
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
-              Meet your new genealogy companion! We&apos;ll help you uncover
-              family stories, analyze documents, and build your family tree
-              together. It&apos;s like having an expert researcher by your side,
-              24/7.
+              No more squinting at 19th-century script. No more dead ends. Your
+              AI research companion reads tough records, spots hidden
+              connections, and turns scattered clues into share-worthy family
+              stories.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
               <Button size="lg" className="hover-lift animate-scale-in" asChild>
                 <Link href="/register">
-                  Meet Your Buddy - Free!
+                  Break Through My Brick Wall — Free
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Link>
               </Button>
@@ -61,7 +61,7 @@ export default function Home() {
                 className="hover-lift animate-scale-in"
                 asChild
               >
-                <Link href="/tools">Try Tools Now</Link>
+                <Link href="/login">Sign In</Link>
               </Button>
             </div>
 
@@ -72,7 +72,7 @@ export default function Home() {
                   250K+
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Documents Analyzed
+                  Historical Pages Deciphered
                 </div>
               </div>
               <div
@@ -81,7 +81,7 @@ export default function Home() {
               >
                 <div className="text-3xl font-bold text-primary mb-2">75K+</div>
                 <div className="text-sm text-muted-foreground">
-                  Family Trees Built
+                  Family Lines Connected
                 </div>
               </div>
               <div
@@ -90,7 +90,7 @@ export default function Home() {
               >
                 <div className="text-3xl font-bold text-primary mb-2">45K+</div>
                 <div className="text-sm text-muted-foreground">
-                  Research Sessions
+                  Guided Research Sessions
                 </div>
               </div>
               <div
@@ -99,7 +99,7 @@ export default function Home() {
               >
                 <div className="text-3xl font-bold text-primary mb-2">25K+</div>
                 <div className="text-sm text-muted-foreground">
-                  Happy Families
+                  Families Finding Answers
                 </div>
               </div>
             </div>
@@ -110,15 +110,13 @@ export default function Home() {
         <section className="py-20">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4 text-foreground">
-              Your Buddy&apos;s Superpowers
+              6 Ways We Tackle Your Toughest Research Problems
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Think of our AI as your research buddy — always ready to analyze,
-              suggest, and guide you through your family history journey.
-              It&apos;s highly accurate at spotting details and patterns, but
-              because genealogy requires careful confirmation, we recommend
-              using its insights as trusted leads, then validating them with
-              official records.
+              Every family historian hits the same snags: unreadable records,
+              missing links, and photos with no names. Our AI doesn’t just{" "}
+              <em>help</em>—it changes how you research. What once took months
+              now takes minutes.
             </p>
           </div>
 
@@ -133,17 +131,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary text-2xl mb-4 mx-auto">
                   <FileText className="w-8 h-8" />
                 </div>
-                <CardTitle>Document Detective</CardTitle>
+                <CardTitle>Decipher Impossible Handwriting</CardTitle>
                 <CardDescription>
-                  Your buddy reads old handwriting better than most humans!
+                  Read church, civil, and immigration records with confidence
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Upload birth certificates, marriage records, or any family
-                  document. Your AI buddy will carefully extract names, dates,
-                  locations, and relationships, even from faded or difficult
-                  handwriting.
+                  Faded ink? Flourished script? Our AI teases out names, dates,
+                  places, and relationships—even when the page looks hopeless.
                 </p>
               </CardContent>
             </Card>
@@ -158,17 +154,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600 text-2xl mb-4 mx-auto">
                   <Dna className="w-8 h-8" />
                 </div>
-                <CardTitle>DNA Story Teller</CardTitle>
+                <CardTitle>Make Sense of Your DNA</CardTitle>
                 <CardDescription>
-                  Let your buddy translate your DNA into fascinating stories
+                  From percentages to people—and the stories between them
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Share your DNA results and watch as your buddy reveals your
-                  ancestors&apos; migration journeys, explains complex genetic
-                  connections, and helps you understand what those percentages
-                  really mean for your family story.
+                  Turn match lists into likely relationships, migration paths,
+                  and research leads you can actually follow.
                 </p>
               </CardContent>
             </Card>
@@ -183,17 +177,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-600 text-2xl mb-4 mx-auto">
                   <Camera className="w-8 h-8" />
                 </div>
-                <CardTitle>Photo Time Machine</CardTitle>
+                <CardTitle>Date & Decode Old Photos</CardTitle>
                 <CardDescription>
-                  Your buddy brings old family photos back to life
+                  Identify eras, occasions, and context at a glance
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Show your buddy those mysterious old family photos! It&apos;ll
-                  estimate when they were taken, describe the clothing and
-                  setting, and even create beautiful stories about what life
-                  might have been like for your ancestors.
+                  Analyze clothing, backdrops, and artifacts to narrow time and
+                  place—then add narrative that brings each image to life.
                 </p>
               </CardContent>
             </Card>
@@ -208,18 +200,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-600 text-2xl mb-4 mx-auto">
                   <TreePine className="w-8 h-8" />
                 </div>
-                <CardTitle>Tree Growing Assistant</CardTitle>
+                <CardTitle>Suggest Connections That Stick</CardTitle>
                 <CardDescription>
-                  Your buddy helps your family tree flourish with smart
-                  suggestions
+                  Map people, places, and timelines—without the guesswork
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Start with what you know, and let your buddy suggest missing
-                  pieces! It&apos;ll spot potential relatives, fill in timeline
-                  gaps, and help you build a comprehensive family tree that
-                  tells your complete story.
+                  Spot patterns across records and locations, surface variant
+                  spellings, and connect the dots you’ve been missing.
                 </p>
               </CardContent>
             </Card>
@@ -234,17 +223,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-600 text-2xl mb-4 mx-auto">
                   <MessageCircle className="w-8 h-8" />
                 </div>
-                <CardTitle>Research Coach</CardTitle>
+                <CardTitle>Your Research Strategist</CardTitle>
                 <CardDescription>
-                  Chat with your buddy whenever you hit a research roadblock
+                  Step-by-step plans for any brick-wall ancestor
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Stuck on a tricky ancestor? Just ask! Your buddy loves solving
-                  genealogy puzzles and will suggest research strategies,
-                  recommend records to check, and help you think through
-                  challenging family mysteries.
+                  Get prioritized next steps: alternate sources, locality-based
+                  strategies, and wildcard tactics that open new paths.
                 </p>
               </CardContent>
             </Card>
@@ -259,17 +246,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-cyan-500/10 rounded-2xl flex items-center justify-center text-cyan-600 text-2xl mb-4 mx-auto">
                   <Users className="w-8 h-8" />
                 </div>
-                <CardTitle>Family Network Hub</CardTitle>
+                <CardTitle>Collaborate Like a Pro</CardTitle>
                 <CardDescription>
-                  Your buddy helps you connect with fellow family researchers
+                  Compare notes, share sources, and build together
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  The best genealogy discoveries happen when families work
-                  together! Your buddy helps you share findings, collaborate on
-                  research, and connect with cousins working on the same family
-                  lines.
+                  Stop duplicating effort. Work with cousins and research
+                  partners to confirm findings and accelerate discoveries.
                 </p>
               </CardContent>
             </Card>
@@ -280,11 +265,11 @@ export default function Home() {
         <section className="py-20 bg-muted/30 rounded-3xl my-20">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4 text-foreground">
-              Love Letters to Our Buddy
+              Breakthroughs from Real Family Historians
             </h2>
             <p className="text-xl text-muted-foreground">
-              See how Genealogy Buddy AI is helping families discover their
-              amazing stories
+              Researchers and hobbyists are smashing brick walls and uncovering
+              stories they thought were lost forever.
             </p>
           </div>
 
@@ -299,10 +284,9 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  &quot;My research buddy helped me find relatives I never knew
-                  existed! It read my great-grandmother&apos;s marriage
-                  certificate like magic - even I couldn&apos;t make out that
-                  handwriting!&quot;
+                  &quot;I stared at my great-grandmother’s marriage record for 3
+                  years. This read the script in seconds and surfaced relatives
+                  I never knew existed. Total breakthrough.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground mr-3">
@@ -311,7 +295,7 @@ export default function Home() {
                   <div>
                     <div className="font-semibold text-sm">Sarah Johnson</div>
                     <div className="text-xs text-muted-foreground">
-                      Found 12 new cousins
+                      Found a new branch
                     </div>
                   </div>
                 </div>
@@ -332,9 +316,9 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  &quot;I was stuck on my 3rd great-grandfather for YEARS. My
-                  buddy suggested a connection I never would have found - and it
-                  was spot on! Saved me months of hunting through records.&quot;
+                  &quot;I’d been stuck on my 3rd great-grandfather. The
+                  suggested connection lined up across time and place—saved me
+                  months of digging.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white mr-3">
@@ -343,7 +327,7 @@ export default function Home() {
                   <div>
                     <div className="font-semibold text-sm">Michael Chen</div>
                     <div className="text-xs text-muted-foreground">
-                      Traced back to 1820s
+                      Traced to the 1820s
                     </div>
                   </div>
                 </div>
@@ -364,10 +348,9 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  &quot;I uploaded this mysterious old photo from my
-                  abuela&apos;s attic. My buddy told me it was from the 1940s,
-                  identified the clothing style, and even wrote a beautiful
-                  story about what life was like then!&quot;
+                  &quot;I uploaded a mystery photo from my abuela’s attic. It
+                  dated the image, explained the clothing, and wrote the context
+                  of that era. The picture finally has a story.&quot;
                 </p>
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white mr-3">
@@ -376,7 +359,7 @@ export default function Home() {
                   <div>
                     <div className="font-semibold text-sm">Emily Rodriguez</div>
                     <div className="text-xs text-muted-foreground">
-                      Brought 47 photos to life
+                      47 photos identified
                     </div>
                   </div>
                 </div>
@@ -392,14 +375,13 @@ export default function Home() {
               Ready to Meet Your Research Buddy?
             </h2>
             <p className="text-xl text-muted-foreground mb-8">
-              Join 25,000+ families who&apos;ve discovered incredible stories
-              with their AI research companion. Your buddy is waiting to help
-              you uncover yours!
+              Join thousands of family historians turning clues into confident
+              conclusions—with an AI partner built for genealogy.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="hover-lift" asChild>
                 <Link href="/register">
-                  Meet Your Buddy - Free!
+                  Meet Your Buddy — Free
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Link>
               </Button>

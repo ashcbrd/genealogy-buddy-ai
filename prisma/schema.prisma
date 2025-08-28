@@ -15,6 +15,7 @@ enum SubscriptionTier {
   EXPLORER
   RESEARCHER
   PROFESSIONAL
+  ADMIN
 }
 
 enum AnalysisType {
@@ -88,6 +89,8 @@ model User {
   analyses        Analysis[]
   photos          Photo[]
   researchChats   ResearchChat[]
+  auditLogs       AuditLog[]
+  securityAlerts  SecurityAlert[]
   
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -261,3 +264,66 @@ model PasswordResetToken {
   @@index([token])
   @@index([identifier])
 }
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      String
+  resource    String?
+  resourceId  String?
+  allowed     Boolean  @default(true)
+  reason      String?
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([allowed, createdAt])
+}
+
+model RateLimit {
+  id          String   @id @default(cuid())
+  identifier  String   // IP address or user ID
+  type        String   // "ip", "user", "endpoint"
+  endpoint    String?  // API endpoint path
+  
+  count       Int      @default(1)
+  resetAt     DateTime
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([identifier, type, endpoint])
+  @@index([identifier, type])
+  @@index([resetAt])
+}
+
+model SecurityAlert {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  type        String   // "ABUSE_DETECTED", "LIMIT_EXCEEDED", "SUSPICIOUS_ACTIVITY"
+  severity    String   // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  message     String
+  
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([type, severity])
+  @@index([resolved, createdAt])
+}
+

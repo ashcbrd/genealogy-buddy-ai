@@ -33,9 +33,18 @@ import {
   Image as ImageIcon,
   Info,
   Eye,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
+import { UsageInfo } from "@/components/ui/usage-info";
+import { ToolUsageIndicator } from "@/components/ui/usage-display";
+import { useSimpleAnalysisRefresh } from "@/hooks/use-analysis-with-refresh";
+import {
+  getToolErrorMessage,
+  getFileRejectionMessage,
+} from "@/lib/error-handler";
+import { useToolAccess } from "@/hooks/use-user-status";
 
 interface PhotoAnalysis {
   dateEstimate: {
@@ -66,6 +75,12 @@ export default function PhotoStorytellerPage() {
   const [description, setDescription] = useState("");
   const [activeTab, setActiveTab] = useState("story");
 
+  const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
+  const { usage, canUse } = useToolAccess("photos");
+  const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
+  const hasNoAccess = !canUse;
+  const shouldUpgrade = isAtUsageLimit || hasNoAccess;
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const selectedFile = acceptedFiles[0];
@@ -91,8 +106,13 @@ export default function PhotoStorytellerPage() {
       multiple: false,
     });
 
-  const analyzePhoto = async () => {
+  const handleAnalyzeAction = async () => {
     if (!file) return;
+
+    if (shouldUpgrade) {
+      window.location.href = "/subscription";
+      return;
+    }
 
     setIsAnalyzing(true);
     setError("");
@@ -125,12 +145,26 @@ export default function PhotoStorytellerPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) {
+        const errorMessage = getToolErrorMessage({
+          toolType: "photo",
+          status: res.status,
+          error: data.error || new Error("Analysis failed"),
+        });
+        throw new Error(errorMessage);
+      }
 
       setAnalysis(data.analysis);
       setActiveTab("story");
+
+      // Refresh usage data immediately after successful analysis
+      await refreshUsageAfterAnalysis();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to analyze photo");
+      const errorMessage = getToolErrorMessage({
+        toolType: "photo",
+        error: err,
+      });
+      setError(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }
@@ -209,7 +243,7 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
             <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center">
               <Camera className="w-6 h-6 text-orange-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
                 Photo Storyteller
               </h1>
@@ -217,11 +251,16 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                 Discover the stories hidden in your historical family photos
               </p>
             </div>
+            <div className="hidden sm:block">
+              <ToolUsageIndicator tool="photos" />
+            </div>
           </div>
         </div>
 
+        <UsageInfo tool="photos" />
+
         {error && (
-          <Alert className="mb-6 animate-slide-up">
+          <Alert variant="destructive" className="mb-6 animate-slide-up">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
@@ -291,12 +330,31 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                   </div>
 
                   {fileRejections.length > 0 && (
-                    <Alert>
+                    <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        {fileRejections[0].errors[0].message}
+                        <div className="space-y-2">
+                          <p className="font-medium">Photo Upload Error</p>
+                          <p>
+                            {getFileRejectionMessage(
+                              "photo",
+                              fileRejections[0].errors[0]
+                            )}
+                          </p>
+                          <p className="text-sm opacity-90">
+                            📸 Best results: Use clear photos with visible faces
+                            and details, good lighting, and minimal blur.
+                          </p>
+                        </div>
                       </AlertDescription>
                     </Alert>
+                  )}
+
+                  {isAnalyzing && (
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing photo…
+                    </div>
                   )}
 
                   <div className="space-y-2">
@@ -317,17 +375,23 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
 
                   <div className="pt-4 border-t">
                     <Button
-                      onClick={analyzePhoto}
+                      onClick={handleAnalyzeAction}
                       disabled={!file || isAnalyzing}
                       className="w-full hover-lift"
                       size="lg"
                     >
                       {isAnalyzing ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : shouldUpgrade ? (
+                        <Crown className="mr-2 h-5 w-5" />
                       ) : (
                         <Sparkles className="mr-2 h-5 w-5" />
                       )}
-                      {isAnalyzing ? "Analyzing Photo..." : "Analyze Photo"}
+                      {isAnalyzing
+                        ? "Analyzing Photo..."
+                        : shouldUpgrade
+                        ? "Upgrade to Analyze Photo"
+                        : "Analyze Photo"}
                     </Button>
                   </div>
                 </CardContent>

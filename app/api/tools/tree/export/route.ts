@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { GEDCOMFamily } from "@/types";
 import { exportGEDCOM } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
       }));
 
       // Generate families based on parent-child relationships
-      const families: Record<string, any>[] = [];
+      const families: GEDCOMFamily[] = [];
       const processedFamilies = new Set();
 
       familyTree.individuals.forEach(individual => {
@@ -69,14 +70,17 @@ export async function POST(req: NextRequest) {
           if (!processedFamilies.has(familyKey)) {
             families.push({
               id: `@F${families.length + 1}@`,
-              husband: individual.fatherId ? `@I${individual.fatherId}@` : null,
-              wife: individual.motherId ? `@I${individual.motherId}@` : null,
-              children: familyTree.individuals
-                .filter(child => 
-                  (child.fatherId === individual.fatherId || child.motherId === individual.motherId) &&
-                  (individual.fatherId || individual.motherId)
-                )
-                .map(child => `@I${child.id}@`),
+              type: 'FAM' as const,
+              data: {
+                husband: individual.fatherId ? `@I${individual.fatherId}@` : undefined,
+                wife: individual.motherId ? `@I${individual.motherId}@` : undefined,
+                children: familyTree.individuals
+                  .filter(child => 
+                    (child.fatherId === individual.fatherId || child.motherId === individual.motherId) &&
+                    (individual.fatherId || individual.motherId)
+                  )
+                  .map(child => `@I${child.id}@`),
+              },
             });
             processedFamilies.add(familyKey);
           }
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
 
       const gedcomContent = exportGEDCOM({
         individuals,
-        families,
+        families: families as unknown as Record<string, unknown>[],
         treeName: familyTree.name,
       });
 

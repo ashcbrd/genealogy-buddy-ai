@@ -29,11 +29,13 @@ export default withAuth(
       '/dashboard',
       '/profile',
       '/subscription',
+      '/tools',
       '/api/dashboard',
       '/api/profile',
       '/api/upload',
       '/api/documents',
-      '/api/photos'
+      '/api/photos',
+      '/api/tools'
     ];
     
     const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
@@ -73,11 +75,13 @@ export default withAuth(
           '/dashboard',
           '/profile', 
           '/subscription',
+          '/tools',
           '/api/dashboard',
           '/api/profile',
           '/api/upload',
           '/api/documents',
-          '/api/photos'
+          '/api/photos',
+          '/api/tools'
         ];
         
         const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));

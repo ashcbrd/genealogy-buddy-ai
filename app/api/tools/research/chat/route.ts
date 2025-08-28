@@ -1,23 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { researchChat } from "@/lib/claude";
-import { checkUsageLimit, incrementUsage } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
-import { checkUnifiedAccess, recordUnifiedUsage, createUnifiedErrorResponse, createUnifiedSuccessResponse } from "@/lib/unified-access-control";
+import { validateApiSecurity } from "@/lib/security";
 import { AnalysisType } from "@prisma/client";
 import type { ResearchChatRequest, ChatMessage } from "@/types";
 import type { Prisma } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
-    // Check unified access control (works for both anonymous and authenticated users)
-    const accessResult = await checkUnifiedAccess(req, AnalysisType.RESEARCH);
-    if (!accessResult.hasAccess) {
-      return createUnifiedErrorResponse(accessResult);
+    // Comprehensive security validation
+    const securityValidation = await validateApiSecurity(req, {
+      requireAuth: true,
+      checkRateLimit: true,
+      logRequest: true,
+      validateUsage: { type: AnalysisType.RESEARCH }
+    });
+
+    if (!securityValidation.allowed) {
+      return NextResponse.json(
+        { 
+          error: securityValidation.error?.message || "Access denied",
+          code: securityValidation.error?.code
+        },
+        { status: securityValidation.error?.status || 403 }
+      );
     }
 
-    const session = await getServerSession(authOptions);
+    const { session, context } = securityValidation;
+    const userId = session!.user.id;
 
     const requestBody = await req.json();
     
@@ -48,32 +58,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const response = await researchChat(messages, session?.user?.id);
+    const response = await researchChat(messages, userId);
 
-    // Save chat only for authenticated users
-    if (session?.user?.id) {
-      const messagesJson = JSON.parse(
-        JSON.stringify(messages)
-      ) as unknown as Prisma.InputJsonValue;
+    // Save chat
+    const messagesJson = JSON.parse(
+      JSON.stringify(messages)
+    ) as unknown as Prisma.InputJsonValue;
 
-      await prisma.researchChat.create({
-        data: {
-          userId: session.user.id,
-          messages: messagesJson,
-        },
-      });
+    const chat = await prisma.researchChat.create({
+      data: {
+        userId,
+        messages: messagesJson,
+      },
+    });
 
-      // Legacy usage tracking for authenticated users
-      await incrementUsage(session.user.id, "RESEARCH");
-    }
+    // Usage tracking is handled by validateApiSecurity
 
-    // Record unified usage (works for both anonymous and authenticated)
-    await recordUnifiedUsage(accessResult.identity.identityId, AnalysisType.RESEARCH);
-
-    // Return unified response with usage info
-    return await createUnifiedSuccessResponse({ 
+    // Add usage info to response headers
+    const responseObj = NextResponse.json({ 
       response,
-    }, accessResult);
+      chatId: chat.id,
+    });
+    
+    if (securityValidation.usageValidation) {
+      responseObj.headers.set('X-Usage-Current', securityValidation.usageValidation.currentUsage.toString());
+      responseObj.headers.set('X-Usage-Limit', securityValidation.usageValidation.limit.toString());
+      responseObj.headers.set('X-Usage-Remaining', securityValidation.usageValidation.remaining.toString());
+    }
+    
+    return responseObj;
   } catch (error) {
     console.error("Research chat error:", error);
     return NextResponse.json(

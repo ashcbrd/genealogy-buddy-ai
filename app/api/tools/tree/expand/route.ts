@@ -2,14 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { expandFamilyTree } from "@/lib/claude";
-import { checkUsageLimit, incrementUsage } from "@/lib/utils";
-import {
-  checkUnifiedAccess,
-  recordUnifiedUsage,
-  createUnifiedErrorResponse,
-  createUnifiedSuccessResponse,
-} from "@/lib/unified-access-control";
-import { AnalysisType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { AnalysisType, SubscriptionTier } from "@prisma/client";
+import { SUBSCRIPTION_LIMITS } from "@/types";
 import type { FamilyMember } from "@/types";
 import type { TreeExpansionResult } from "@/lib/claude";
 
@@ -20,35 +15,107 @@ interface ExpandTreeRequest {
 
 export async function POST(req: NextRequest) {
   try {
-    // Check unified access control (works for both anonymous and authenticated users)
-    const accessResult = await checkUnifiedAccess(
-      req,
-      AnalysisType.FAMILY_TREE
-    );
-    if (!accessResult.hasAccess) {
-      return createUnifiedErrorResponse(accessResult);
+    // Require authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Authentication required. Please log in to use this feature." },
+        { status: 401 }
+      );
     }
 
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
+    const userId = session.user.id;
+    
+    // Check usage limits
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId },
+    });
+    
+    const tier = subscription?.tier || SubscriptionTier.FREE;
+    const limits = SUBSCRIPTION_LIMITS[tier];
+    
+    if (limits.trees === 0) {
+      return NextResponse.json(
+        { error: "Family tree building is not available in your plan. Please upgrade to access this feature." },
+        { status: 402 }
+      );
+    }
+    
+    // Check current usage if not unlimited
+    if (limits.trees !== -1) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      
+      const currentUsage = await prisma.analysis.count({
+        where: {
+          userId,
+          type: AnalysisType.FAMILY_TREE,
+          createdAt: { gte: startOfMonth },
+          deletedAt: null,
+        },
+      });
+      
+      if (currentUsage >= limits.trees) {
+        return NextResponse.json(
+          { error: `You have reached your monthly limit of ${limits.trees} tree expansions. Please upgrade your plan or wait until next month.` },
+          { status: 429 }
+        );
+      }
+    }
 
     const { members, treeName } = (await req.json()) as ExpandTreeRequest;
+
+    console.log(`[Tree Expansion] User: ${userId}, Members: ${members?.length || 0}, TreeName: ${treeName}`);
 
     const expandedTree: TreeExpansionResult = await expandFamilyTree(
       { members, treeName },
       userId
     );
 
-    if (userId) {
-      // Legacy usage tracking for authenticated users
-      await incrementUsage(userId, "FAMILY_TREE");
-    }
+    console.log(`[Tree Expansion] AI returned ${expandedTree?.individuals?.length || 0} individuals`);
 
-    // Record unified usage (works for both anonymous and authenticated)
-    await recordUnifiedUsage(
-      accessResult.identity.identityId,
-      AnalysisType.FAMILY_TREE
-    );
+    // Record analysis in the database
+    const analysisData = {
+      members,
+      treeName,
+    };
+
+    await prisma.analysis.create({
+      data: {
+        userId,
+        type: AnalysisType.FAMILY_TREE,
+        input: JSON.parse(JSON.stringify(analysisData)) as any,
+        result: JSON.parse(JSON.stringify(expandedTree)) as any,
+        confidence: 0.8,
+        suggestions: (expandedTree as any).suggestions || [],
+        claudeTokensUsed: 0,
+      },
+    });
+
+    // Record usage for real-time tracking
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    await prisma.usage.upsert({
+      where: {
+        userId_type_period: {
+          userId,
+          type: AnalysisType.FAMILY_TREE,
+          period: startOfMonth,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      create: {
+        userId,
+        type: AnalysisType.FAMILY_TREE,
+        count: 1,
+        period: startOfMonth,
+      },
+    });
 
     // Helper function to normalize names for comparison
     const normalizeName = (firstName: string, lastName: string): string => {
@@ -144,20 +211,37 @@ export async function POST(req: NextRequest) {
         return true;
       });
 
-    // Return unified response with usage info
-    return await createUnifiedSuccessResponse(
-      {
-        suggestedMembers,
-        relationships: [], // Relationships are embedded in individuals
-        suggestions: expandedTree.suggestions ?? [],
-      },
-      accessResult
-    );
+    return NextResponse.json({
+      suggestedMembers,
+      relationships: [], // Relationships are embedded in individuals
+      suggestions: expandedTree.suggestions ?? [],
+    });
   } catch (error) {
     console.error("Tree expansion error:", error);
+    
+    // Provide more detailed error messages
+    let errorMessage = "Failed to expand tree";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      // Check for specific error types
+      if (error.message.includes('rate limit') || error.message.includes('429')) {
+        errorMessage = "Claude API rate limit exceeded. Please try again in a moment.";
+        statusCode = 429;
+      } else if (error.message.includes('authentication') || error.message.includes('401')) {
+        errorMessage = "AI service authentication error. Please try again.";
+        statusCode = 503;
+      } else if (error.message.includes('timeout')) {
+        errorMessage = "Request timed out. Please try again.";
+        statusCode = 504;
+      } else {
+        errorMessage = `Tree expansion failed: ${error.message}`;
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to expand tree" },
-      { status: 500 }
+      { error: errorMessage },
+      { status: statusCode }
     );
   }
 }

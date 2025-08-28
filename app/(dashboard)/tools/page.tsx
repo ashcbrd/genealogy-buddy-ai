@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React from "react";
 import Link from "next/link";
 // import { useSession } from "next-auth/react";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Navigation } from "@/components/ui/navigation";
 import {
   FileText,
@@ -26,40 +25,11 @@ import {
   CheckCircle,
   Sparkles,
   TrendingUp,
-  Info,
-  Users,
 } from "lucide-react";
 import { SUBSCRIPTION_LIMITS } from "@/types";
-import { useUserStatus } from "@/hooks/use-user-status";
+import { useUserStatus, useUsageData } from "@/hooks/use-user-status";
 import { Footer } from "@/components/footer";
 
-/** Types coming from /api/dashboard (shape assumed) */
-type Tier = "FREE" | "EXPLORER" | "RESEARCHER" | "PROFESSIONAL";
-
-type DashboardUsageItem = {
-  used: number;
-  limit?: number | null; // may be provided by API, but we will still source limits from SUBSCRIPTION_LIMITS
-  lastUsed?: string | null;
-};
-
-type DashboardResponse = {
-  subscription: { tier: Tier } | null;
-  usage: {
-    documents: DashboardUsageItem;
-    dna: DashboardUsageItem;
-    trees: DashboardUsageItem;
-    research: DashboardUsageItem;
-    photos: DashboardUsageItem;
-  };
-};
-
-interface ToolStats {
-  documentAnalyzer: { used: number; lastUsed: string };
-  dnaInterpreter: { used: number; lastUsed: string };
-  treeBuilder: { used: number; lastUsed: string };
-  researchCopilot: { used: number; lastUsed: string };
-  photoStoryteller: { used: number; lastUsed: string };
-}
 
 type ToolId =
   | "document-analyzer"
@@ -191,97 +161,13 @@ const TONE = {
   },
 } as const;
 
-/** tool.id → SUBSCRIPTION_LIMITS key */
-const TOOL_LIMIT_KEY: Record<
-  ToolId,
-  keyof (typeof SUBSCRIPTION_LIMITS)["FREE"]
-> = {
-  "document-analyzer": "documents",
-  "dna-interpreter": "dna",
-  "tree-builder": "trees",
-  "research-copilot": "research",
-  "photo-storyteller": "photos",
-};
 
 export default function ToolsPage() {
-  const { isAnonymous } = useUserStatus();
-  const [toolStats, setToolStats] = useState<ToolStats | null>(null);
-  const [subscription, setSubscription] = useState<{ tier?: Tier } | null>(
-    null
-  );
-  const [isLoading, setIsLoading] = useState(true);
+  const { isAnonymous, isAuthenticated, tier } = useUserStatus();
+  const { data: usageData } = useUsageData();
 
-  /** Single fetch that powers subscription + usage */
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      // Skip API call for anonymous users - they'll use server-side tracking
-      if (isAnonymous) {
-        setSubscription({ tier: "FREE" });
-        setToolStats({
-          documentAnalyzer: { used: 0, lastUsed: "Never" },
-          dnaInterpreter: { used: 0, lastUsed: "Never" },
-          treeBuilder: { used: 0, lastUsed: "Never" },
-          researchCopilot: { used: 0, lastUsed: "Never" },
-          photoStoryteller: { used: 0, lastUsed: "Never" },
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      const res = await fetch("/api/dashboard");
-      if (!res.ok) {
-        throw new Error("Failed to fetch dashboard data");
-      }
-      const data: DashboardResponse = await res.json();
-
-      setSubscription(data.subscription ?? { tier: "FREE" });
-
-      // Map dashboard usage → local ToolStats (limits come from SUBSCRIPTION_LIMITS later)
-      setToolStats({
-        documentAnalyzer: {
-          used: data.usage?.documents?.used ?? 0,
-          lastUsed: data.usage?.documents?.lastUsed ?? "Never",
-        },
-        dnaInterpreter: {
-          used: data.usage?.dna?.used ?? 0,
-          lastUsed: data.usage?.dna?.lastUsed ?? "Never",
-        },
-        treeBuilder: {
-          used: data.usage?.trees?.used ?? 0,
-          lastUsed: data.usage?.trees?.lastUsed ?? "Never",
-        },
-        researchCopilot: {
-          used: data.usage?.research?.used ?? 0,
-          lastUsed: data.usage?.research?.lastUsed ?? "Never",
-        },
-        photoStoryteller: {
-          used: data.usage?.photos?.used ?? 0,
-          lastUsed: data.usage?.photos?.lastUsed ?? "Never",
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      // fallback to safe defaults
-      setSubscription({ tier: "FREE" });
-      setToolStats({
-        documentAnalyzer: { used: 0, lastUsed: "Never" },
-        dnaInterpreter: { used: 0, lastUsed: "Never" },
-        treeBuilder: { used: 0, lastUsed: "Never" },
-        researchCopilot: { used: 0, lastUsed: "Never" },
-        photoStoryteller: { used: 0, lastUsed: "Never" },
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAnonymous]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  /** Limits for current tier (FREE has quotas too) */
+  /** Limits for current tier */
   const getTierLimits = () => {
-    const tier: Tier = (subscription?.tier as Tier) || "FREE";
     return SUBSCRIPTION_LIMITS[tier] ?? SUBSCRIPTION_LIMITS.FREE;
   };
 
@@ -292,31 +178,61 @@ export default function ToolsPage() {
     return true;
   };
 
-  /** Compose usage (used from dashboard, limit from plan) */
+  /** Get usage info from our usage data hook */
   const getUsageInfo = (toolId: ToolId) => {
-    if (!toolStats || !subscription) return null;
+    if (!usageData) return null;
 
-    const tierLimits = getTierLimits();
-
-    const statsMap = {
-      "document-analyzer": toolStats.documentAnalyzer,
-      "dna-interpreter": toolStats.dnaInterpreter,
-      "tree-builder": toolStats.treeBuilder,
-      "research-copilot": toolStats.researchCopilot,
-      "photo-storyteller": toolStats.photoStoryteller,
+    const toolKeyMap = {
+      "document-analyzer": "documents",
+      "dna-interpreter": "dna", 
+      "tree-builder": "trees",
+      "research-copilot": "research",
+      "photo-storyteller": "photos",
     } as const;
 
-    const stat = statsMap[toolId];
-    const key = TOOL_LIMIT_KEY[toolId];
+    const key = toolKeyMap[toolId];
+    const usage = usageData.usage[key];
 
     return {
-      used: stat.used,
-      limit: tierLimits[key],
-      lastUsed: stat.lastUsed,
+      used: usage.used,
+      limit: usage.unlimited ? -1 : usage.limit,
+      unlimited: usage.unlimited,
+      lastUsed: "Recently", // We don't have lastUsed in our current data structure
     };
   };
 
-  if (isLoading) {
+  // Show login prompt for unauthenticated users
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation variant="dashboard" />
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="text-center py-16">
+            <h1 className="text-4xl font-bold mb-4">Authentication Required</h1>
+            <p className="text-xl text-muted-foreground mb-8">
+              Please log in to access your genealogy tools and saved research.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Link href="/login">
+                <Button size="lg">
+                  Log In
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button size="lg" variant="outline">
+                  Create Account
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Show loading if we're waiting for usage data
+  if (isAuthenticated && !usageData) {
     return (
       <div className="flex items-center justify-center h-[70vh]">
         <div className="text-center">
@@ -335,50 +251,12 @@ export default function ToolsPage() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold">Your Buddy&apos;s Toolbox</h1>
-            {isAnonymous && (
-              <Badge variant="secondary" className="text-sm">
-                <Users className="w-4 h-4 mr-1" />
-                Free Trial
-              </Badge>
-            )}
           </div>
           <p className="text-muted-foreground">
             Ready to explore? Your research buddy has powerful tools to help uncover your family story!
           </p>
         </div>
 
-        {/* Anonymous Mode Alert */}
-        {isAnonymous && (
-          <Alert className="mb-6">
-            <Info className="h-4 w-4" />
-            <AlertDescription className="flex flex-wrap items-center gap-2 justify-between w-full">
-              Your buddy is ready to help! Sign up for free to save your discoveries and build on your research over time.
-              <Link href="/register">
-                <Button size="sm" className="ml-1">
-                  Sign Up Free
-                  <ArrowRight className="ml-1 h-3 w-3" />
-                </Button>
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Free Plan Alert */}
-        {!isAnonymous && subscription?.tier === "FREE" && (
-          <Alert className="mb-6 flex  items-center">
-            <Info className="h-4 w-4 my-auto" />
-            <AlertDescription className="flex flex-wrap items-center gap-2 justify-between w-full">
-              You&apos;re on the Free plan. Upgrade to unlock more analyses and
-              advanced features.
-              <Link href="/subscription">
-                <Button size="sm" className="ml-1">
-                  View Plans
-                  <ArrowRight className="ml-1 h-3 w-3" />
-                </Button>
-              </Link>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Tools Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -389,7 +267,7 @@ export default function ToolsPage() {
 
             const limit = usage?.limit ?? 0;
             const used = usage?.used ?? 0;
-            const unlimited = typeof limit === "number" && limit === -1;
+            const unlimited = usage?.unlimited ?? false;
             // Usage tracking for potential future use
             const _atLimit =
               hasAccess &&
@@ -474,39 +352,6 @@ export default function ToolsPage() {
                         </span>
                       </div>
 
-                      {/* capsule bar */}
-                      {!unlimited && typeof limit === "number" && limit > 0 ? (
-                        <div
-                          className="h-2 w-full rounded-full border"
-                          style={{
-                            borderColor: "var(--border)",
-                            background:
-                              "color-mix(in oklab, var(--muted) 80%, transparent)",
-                          }}
-                        >
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(
-                                (used /
-                                  (typeof limit === "number" ? limit : 1)) *
-                                  100,
-                                100
-                              )}%`,
-                              background: tone.ring,
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          className="h-2 w-full rounded-full border"
-                          style={{
-                            borderColor: "var(--border)",
-                            background:
-                              "color-mix(in oklab, var(--border) 70%, transparent)",
-                          }}
-                        />
-                      )}
 
                       {/* last used */}
                       {usage.lastUsed && usage.lastUsed !== "Never" && (
@@ -523,7 +368,7 @@ export default function ToolsPage() {
                   <div className="pt-1">
                     <Link href={tool.href}>
                       <Button className="w-full">
-                        {isAnonymous ? "Try Tool" : "Open Tool"}
+                        Open Tool
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </Link>
