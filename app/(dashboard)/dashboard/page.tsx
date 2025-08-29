@@ -136,7 +136,7 @@ export default function DashboardPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
           <p className="mt-4 text-muted-foreground">
-            Gathering your family history…
+            Gathering your research data…
           </p>
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function DashboardPage() {
               </h1>
             </div>
             <p className="text-lg text-muted-foreground">
-              Continue discovering your family story with AI-powered research
+              Continue discovering your genealogical research with AI-powered analysis
               tools.
             </p>
           </div>
@@ -256,7 +256,7 @@ export default function DashboardPage() {
             accent="text-purple-600"
           />
           <KpiCard
-            title="Family Trees"
+            title="Research Trees"
             value={stats?.treesBuilt ?? 0}
             icon={<TreePine className="w-4 h-4" />}
             accent="text-green-600"
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                   barColor="bg-purple-500"
                 />
                 <UsageCapsule
-                  label="Family Trees"
+                  label="Research Trees"
                   used={usageData?.usage?.trees?.used ?? 0}
                   limit={usageData?.usage?.trees?.limit ?? 1}
                   icon={<TreePine className="w-4 h-4" />}

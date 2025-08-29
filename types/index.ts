@@ -43,7 +43,6 @@ export interface SubscriptionLimits {
   research: number;
   photos: number;
   gedcomExport: boolean;
-  apiAccess: boolean;
   prioritySupport: boolean;
 }
 
@@ -56,7 +55,6 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       research: 5,
       photos: 0,
       gedcomExport: false,
-      apiAccess: false,
       prioritySupport: false,
     },
     EXPLORER: {
@@ -66,7 +64,6 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       research: -1, // unlimited
       photos: 5,
       gedcomExport: false,
-      apiAccess: false,
       prioritySupport: false,
     },
     RESEARCHER: {
@@ -76,7 +73,6 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       research: -1,
       photos: 25,
       gedcomExport: true,
-      apiAccess: false,
       prioritySupport: false,
     },
     PROFESSIONAL: {
@@ -86,7 +82,6 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       research: -1,
       photos: -1,
       gedcomExport: true,
-      apiAccess: true,
       prioritySupport: true,
     },
     ADMIN: {
@@ -96,7 +91,6 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
       research: -1,
       photos: -1,
       gedcomExport: true,
-      apiAccess: true,
       prioritySupport: true,
     },
   };

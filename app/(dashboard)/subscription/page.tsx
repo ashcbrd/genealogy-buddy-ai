@@ -393,12 +393,12 @@ export default function SubscriptionPage() {
                         {limits.trees === -1 ? (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>Unlimited family trees</span>
+                            <span>Unlimited research trees</span>
                           </>
                         ) : (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>{limits.trees} family trees</span>
+                            <span>{limits.trees} research trees</span>
                           </>
                         )}
                       </li>
@@ -446,21 +446,6 @@ export default function SubscriptionPage() {
                             <X className="w-4 h-4 text-gray-400" />
                             <span className="text-muted-foreground">
                               GEDCOM export
-                            </span>
-                          </>
-                        )}
-                      </li>
-                      <li className="flex items-center gap-2 text-sm">
-                        {limits.apiAccess ? (
-                          <>
-                            <Check className="w-4 h-4 text-green-500" />
-                            <span>API access</span>
-                          </>
-                        ) : (
-                          <>
-                            <X className="w-4 h-4 text-gray-400" />
-                            <span className="text-muted-foreground">
-                              API access
                             </span>
                           </>
                         )}

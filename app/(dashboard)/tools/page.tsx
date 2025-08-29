@@ -54,9 +54,9 @@ interface Tool {
 const TOOLS: Tool[] = [
   {
     id: "document-analyzer",
-    name: "Document Analyzer",
+    name: "Document Analysis",
     description:
-      "Extract names, dates, places, and relationships from historical documents using AI-powered OCR and analysis",
+      "Professional document analysis for genealogical research using advanced AI-powered OCR and data extraction",
     icon: FileText,
     tone: "docs" as const,
     features: [
@@ -71,9 +71,9 @@ const TOOLS: Tool[] = [
   },
   {
     id: "dna-interpreter",
-    name: "DNA & Heritage Interpreter",
+    name: "Genetic Analysis",
     description:
-      "Understand your genetic heritage with plain-language explanations and historical migration patterns",
+      "Comprehensive genetic data interpretation for genealogical research including ethnicity analysis and migration patterns",
     icon: Dna,
     tone: "dna" as const,
     features: [
@@ -87,9 +87,9 @@ const TOOLS: Tool[] = [
   },
   {
     id: "tree-builder",
-    name: "Smart Family Tree Builder",
+    name: "Research Tree Builder",
     description:
-      "Build comprehensive family trees with AI suggestions for probable connections and missing links",
+      "Construct evidence-based genealogical trees with AI-powered analysis and relationship validation for research purposes",
     icon: TreePine,
     tone: "trees" as const,
     features: [
@@ -104,9 +104,9 @@ const TOOLS: Tool[] = [
   },
   {
     id: "research-copilot",
-    name: "AI Research Copilot",
+    name: "Research Assistant",
     description:
-      "Get expert genealogy guidance and research strategies from your AI assistant",
+      "Professional genealogy consultation and advanced research methodology guidance through AI analysis",
     icon: MessageCircle,
     tone: "research" as const,
     features: [
@@ -120,9 +120,9 @@ const TOOLS: Tool[] = [
   },
   {
     id: "photo-storyteller",
-    name: "Photo Enhancer & Storyteller",
+    name: "Historical Photo Analysis",
     description:
-      "Analyze historical photos for time periods, contexts, and create engaging family narratives",
+      "Professional analysis of historical photographs for research documentation including dating, context, and evidence evaluation",
     icon: Camera,
     tone: "photos" as const,
     features: [
@@ -210,7 +210,7 @@ export default function ToolsPage() {
           <div className="text-center py-16">
             <h1 className="text-4xl font-bold mb-4">Authentication Required</h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Please log in to access your genealogy tools and saved research.
+              Please log in to access professional genealogy research tools and saved projects.
             </p>
             <div className="flex gap-4 justify-center">
               <Link href="/login">
@@ -253,7 +253,7 @@ export default function ToolsPage() {
             <h1 className="text-3xl font-bold">Your Buddy&apos;s Toolbox</h1>
           </div>
           <p className="text-muted-foreground">
-            Ready to explore? Your research buddy has powerful tools to help uncover your family story!
+            Ready to explore? Your research buddy has powerful tools to help uncover your genealogical research findings!
           </p>
         </div>
 
@@ -403,8 +403,8 @@ export default function ToolsPage() {
                   Unlock All Tools
                 </h3>
                 <p className="text-muted-foreground">
-                  Get unlimited access to every AI genealogy workflow with the
-                  Professional plan.
+                  Get unlimited access to every professional research tool with the
+                  Professional research plan.
                 </p>
               </div>
               <Link href="/subscription">

@@ -471,7 +471,7 @@ export default function DocumentAnalyzerPage() {
                     />
                     <Feature
                       icon={<Users className="w-4 h-4" />}
-                      text="Family relationships"
+                      text="Genealogical relationships"
                     />
                     <Feature
                       icon={<FileText className="w-4 h-4" />}

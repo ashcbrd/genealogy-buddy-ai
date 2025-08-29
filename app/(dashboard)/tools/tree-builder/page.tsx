@@ -42,7 +42,7 @@ export default function TreeBuilderPage() {
   );
   const [isExpanding, setIsExpanding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [treeName, setTreeName] = useState("My Family Tree");
+  const [treeName, setTreeName] = useState("My Research Tree");
   const [error, setError] = useState("");
 
   const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
@@ -226,7 +226,7 @@ export default function TreeBuilderPage() {
             </Button>
             <Badge variant="secondary" className="gap-1">
               <TreePine className="h-3.5 w-3.5" />
-              Family Trees
+              Research Trees
             </Badge>
           </div>
           <div className="flex items-center gap-4 mb-3">
@@ -235,10 +235,10 @@ export default function TreeBuilderPage() {
             </div>
             <div className="flex-1">
               <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-                Family Tree Builder
+                Research Tree Builder
               </h1>
               <p className="text-lg text-muted-foreground mt-1">
-                Build and expand your family tree with AI-powered suggestions
+                Build and expand your genealogical research tree with AI-powered suggestions
               </p>
             </div>
             <div className="hidden sm:block">
@@ -264,7 +264,7 @@ export default function TreeBuilderPage() {
                   <div>
                     <CardTitle className="text-xl">Tree Overview</CardTitle>
                     <CardDescription>
-                      View and manage your family tree members
+                      View and manage your research tree subjects
                     </CardDescription>
                   </div>
                   <Badge variant="outline">
@@ -283,7 +283,7 @@ export default function TreeBuilderPage() {
                         id="treeName"
                         value={treeName}
                         onChange={(e) => setTreeName(e.target.value)}
-                        placeholder="My Family Tree"
+                        placeholder="My Research Tree"
                         className="w-64 h-8 text-sm"
                       />
                     </div>
@@ -339,8 +339,8 @@ export default function TreeBuilderPage() {
                     <div className="flex items-center justify-center text-sm text-muted-foreground">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       {isExpanding
-                        ? "Expanding family tree with AI..."
-                        : "Saving family tree..."}
+                        ? "Expanding research tree with AI..."
+                        : "Saving research tree..."}
                     </div>
                   )}
                 </div>
@@ -434,10 +434,10 @@ export default function TreeBuilderPage() {
                       <TreePine className="w-8 h-8 text-muted-foreground" />
                     </div>
                     <h3 className="font-medium text-foreground mb-2">
-                      No family members yet
+                      No research subjects yet
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Add your first family member to get started
+                      Add your first research subject to get started
                     </p>
                   </div>
                 )}
@@ -448,9 +448,9 @@ export default function TreeBuilderPage() {
           <div className="space-y-6">
             <Card variant="elevated" className="animate-slide-up">
               <CardHeader>
-                <CardTitle className="text-xl">Add Family Member</CardTitle>
+                <CardTitle className="text-xl">Add Research Subject</CardTitle>
                 <CardDescription>
-                  Add a new member to your family tree
+                  Add a new subject to your research tree
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">

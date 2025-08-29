@@ -15,20 +15,20 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-muted-foreground text-sm">
-              Your friendly AI research companion, helping families discover
-              their amazing stories together.
+              Professional AI-powered research platform for genealogists and 
+              researchers conducting advanced historical investigations.
             </p>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4 text-foreground">Tools</h4>
+            <h4 className="font-semibold mb-4 text-foreground">Research Tools</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link
                   href="/tools/document-analyzer"
                   className="hover:text-foreground transition-colors"
                 >
-                  Document Analyzer
+                  Document Analysis
                 </Link>
               </li>
               <li>
@@ -36,7 +36,7 @@ export function Footer() {
                   href="/tools/dna-interpreter"
                   className="hover:text-foreground transition-colors"
                 >
-                  DNA Interpreter
+                  Genetic Analysis
                 </Link>
               </li>
               <li>
@@ -44,7 +44,7 @@ export function Footer() {
                   href="/tools/photo-storyteller"
                   className="hover:text-foreground transition-colors"
                 >
-                  Photo Storyteller
+                  Historical Photo Analysis
                 </Link>
               </li>
               <li>
@@ -52,7 +52,7 @@ export function Footer() {
                   href="/tools/tree-builder"
                   className="hover:text-foreground transition-colors"
                 >
-                  Tree Builder
+                  Research Tree Builder
                 </Link>
               </li>
               <li>
@@ -60,7 +60,7 @@ export function Footer() {
                   href="/tools/research-copilot"
                   className="hover:text-foreground transition-colors"
                 >
-                  Research Copilot
+                  Research Assistant
                 </Link>
               </li>
             </ul>
@@ -105,14 +105,14 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4 text-foreground">Support</h4>
+            <h4 className="font-semibold mb-4 text-foreground">Research Support</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link
                   href="/help"
                   className="hover:text-foreground transition-colors"
                 >
-                  Help Center
+                  Research Help
                 </Link>
               </li>
               <li>
@@ -120,7 +120,7 @@ export function Footer() {
                   href="/guides"
                   className="hover:text-foreground transition-colors"
                 >
-                  User Guides
+                  Methodology Guides
                 </Link>
               </li>
               <li>
@@ -128,15 +128,7 @@ export function Footer() {
                   href="/community"
                   className="hover:text-foreground transition-colors"
                 >
-                  Community
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/api"
-                  className="hover:text-foreground transition-colors"
-                >
-                  API Docs
+                  Research Community
                 </Link>
               </li>
             </ul>

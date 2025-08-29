@@ -248,7 +248,7 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                 Photo Storyteller
               </h1>
               <p className="text-lg text-muted-foreground mt-1">
-                Discover the stories hidden in your historical family photos
+                Discover the stories hidden in your historical research photos
               </p>
             </div>
             <div className="hidden sm:block">
@@ -274,7 +274,7 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                 <CardHeader>
                   <CardTitle className="text-xl">Upload Photo</CardTitle>
                   <CardDescription>
-                    Upload a family photo to discover its historical context and
+                    Upload a historical photo to discover its research context and
                     story
                   </CardDescription>
                 </CardHeader>

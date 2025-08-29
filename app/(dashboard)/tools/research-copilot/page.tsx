@@ -48,7 +48,7 @@ const EXAMPLE_QUESTIONS = [
   "What records should I look for to find immigration dates?",
   "How can I break through a brick wall in my research?",
   "What's the best way to organize my genealogy research?",
-  "How do I verify family stories and legends?",
+  "How do I verify genealogical stories and historical accounts?",
   "What DNA test is best for genealogy research?",
 ];
 

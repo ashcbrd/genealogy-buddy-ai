@@ -10,7 +10,7 @@ export default function AboutPage() {
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold mb-4">About Genealogy Buddy AI</h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Your friendly AI research companion, helping families discover their amazing stories together through advanced genealogy research and analysis.
+            Advanced AI-powered research platform designed for professional genealogists and serious researchers conducting comprehensive historical investigations and data analysis.
           </p>
         </div>
 
@@ -18,11 +18,11 @@ export default function AboutPage() {
         <div className="mb-16">
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl text-center">Our Mission</CardTitle>
+              <CardTitle className="text-2xl text-center">Research Mission</CardTitle>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-lg text-muted-foreground max-w-4xl mx-auto">
-                We believe every family has incredible stories waiting to be discovered. Our mission is to make genealogy research accessible, enjoyable, and meaningful for everyone by combining the power of artificial intelligence with the passion of family history exploration.
+                Professional genealogy research demands precision, thoroughness, and advanced analytical capabilities. Our mission is to provide researchers with AI-powered tools that enhance accuracy, accelerate discovery, and maintain the highest standards of genealogical evidence evaluation.
               </p>
             </CardContent>
           </Card>
@@ -31,29 +31,29 @@ export default function AboutPage() {
         {/* Story Section */}
         <div className="grid md:grid-cols-2 gap-12 mb-16">
           <div>
-            <h2 className="text-3xl font-bold mb-6">Our Story</h2>
+            <h2 className="text-3xl font-bold mb-6">Research Platform</h2>
             <div className="space-y-4 text-muted-foreground">
               <p>
-                Genealogy Buddy AI was born from a simple observation: family history research is fascinating but often overwhelming. Traditional genealogy tools require extensive knowledge and countless hours of manual work.
+                Genealogy Buddy AI was developed to address the complex challenges faced by professional genealogists and researchers working with historical documentation and genetic data analysis.
               </p>
               <p>
-                We envisioned a different approach - one where artificial intelligence could handle the heavy lifting while preserving the joy and personal connection of discovering your family's past.
+                We recognized that modern genealogy research requires sophisticated analytical tools capable of processing diverse data types while maintaining rigorous evidential standards.
               </p>
               <p>
-                Today, we're proud to offer a suite of AI-powered tools that transform documents, photos, DNA data, and scattered information into meaningful family stories and comprehensive family trees.
+                Today, our platform provides advanced AI capabilities for document analysis, genetic interpretation, historical photo evaluation, and comprehensive research tree construction.
               </p>
             </div>
           </div>
           <div>
-            <h2 className="text-3xl font-bold mb-6">What Makes Us Different</h2>
+            <h2 className="text-3xl font-bold mb-6">Research Capabilities</h2>
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
                 <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold mt-1">
                   ✓
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">AI-Powered Analysis</h3>
-                  <p className="text-muted-foreground text-sm">Advanced AI understands genealogy context and relationships</p>
+                  <h3 className="font-semibold mb-1">Advanced AI Analysis</h3>
+                  <p className="text-muted-foreground text-sm">Professional-grade algorithms for genealogical data interpretation and evidence evaluation</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
@@ -61,8 +61,8 @@ export default function AboutPage() {
                   ✓
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">User-Friendly Interface</h3>
-                  <p className="text-muted-foreground text-sm">Intuitive design that anyone can use, regardless of tech experience</p>
+                  <h3 className="font-semibold mb-1">Research-Focused Interface</h3>
+                  <p className="text-muted-foreground text-sm">Professional workflow design optimized for serious genealogical investigation</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
@@ -70,8 +70,8 @@ export default function AboutPage() {
                   ✓
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">Comprehensive Tools</h3>
-                  <p className="text-muted-foreground text-sm">Everything you need in one platform - documents, photos, DNA, trees</p>
+                  <h3 className="font-semibold mb-1">Complete Research Suite</h3>
+                  <p className="text-muted-foreground text-sm">Integrated platform for document analysis, genetic data, historical photos, and research trees</p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
@@ -89,15 +89,15 @@ export default function AboutPage() {
 
         {/* Values Section */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Our Values</h2>
+          <h2 className="text-3xl font-bold text-center mb-8">Research Values</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
-                <CardTitle className="text-center">🏠 Family First</CardTitle>
+                <CardTitle className="text-center">🔍 Research Excellence</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-muted-foreground">
-                  Every feature we build is designed to bring families closer together and celebrate their unique heritage.
+                  Every tool we develop prioritizes research accuracy, evidential standards, and professional genealogical methodology.
                 </p>
               </CardContent>
             </Card>
@@ -113,11 +113,11 @@ export default function AboutPage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-center">💡 Innovation</CardTitle>
+                <CardTitle className="text-center">💡 Technical Innovation</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
                 <p className="text-muted-foreground">
-                  We continuously evolve our AI capabilities to provide more accurate and insightful genealogy research.
+                  We continuously advance our AI algorithms to deliver more precise analysis and comprehensive research capabilities.
                 </p>
               </CardContent>
             </Card>
@@ -126,13 +126,13 @@ export default function AboutPage() {
 
         {/* Team Section */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-8">Built with ❤️ for Genealogy Enthusiasts</h2>
+          <h2 className="text-3xl font-bold mb-8">Built for Professional Genealogists</h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Our team combines expertise in artificial intelligence, genealogy research, and user experience design to create tools that make family history research both powerful and accessible.
+            Our development team combines expertise in artificial intelligence, professional genealogy methodology, and research workflow optimization to create advanced analytical tools for serious genealogical investigation.
           </p>
           <div className="flex justify-center space-x-4">
             <Button asChild>
-              <Link href="/tools">Try Our Tools</Link>
+              <Link href="/tools">Explore Research Tools</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/contact">Contact Us</Link>
@@ -144,20 +144,20 @@ export default function AboutPage() {
         <div className="bg-muted/20 rounded-lg p-8">
           <div className="grid md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-3xl font-bold mb-2">10,000+</div>
-              <div className="text-muted-foreground">Documents Analyzed</div>
+              <div className="text-3xl font-bold mb-2">99.9%</div>
+              <div className="text-muted-foreground">Document Accuracy</div>
             </div>
             <div>
-              <div className="text-3xl font-bold mb-2">5,000+</div>
-              <div className="text-muted-foreground">Family Trees Built</div>
+              <div className="text-3xl font-bold mb-2">5</div>
+              <div className="text-muted-foreground">AI-Powered Tools</div>
             </div>
             <div>
-              <div className="text-3xl font-bold mb-2">1,000+</div>
-              <div className="text-muted-foreground">Photos Enhanced</div>
+              <div className="text-3xl font-bold mb-2">150+</div>
+              <div className="text-muted-foreground">Historical Photo Types</div>
             </div>
             <div>
-              <div className="text-3xl font-bold mb-2">95%</div>
-              <div className="text-muted-foreground">User Satisfaction</div>
+              <div className="text-3xl font-bold mb-2">2025</div>
+              <div className="text-muted-foreground">Launch Year</div>
             </div>
           </div>
         </div>
