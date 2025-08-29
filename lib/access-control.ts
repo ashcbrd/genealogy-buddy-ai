@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { SUBSCRIPTION_LIMITS } from "@/types";
 import type { SubscriptionTier } from "@prisma/client";
 
-export type ToolKey = "documents" | "dna" | "trees" | "research" | "photos";
+export type ToolKey = "documents" | "dna" | "translations" | "research" | "photos";
 
 export interface AccessControlResult {
   hasAccess: boolean;
@@ -163,7 +163,7 @@ function getToolDisplayName(toolKey: ToolKey): string {
   const names = {
     documents: "Document Analysis",
     dna: "DNA Analysis", 
-    trees: "Tree Building",
+    translations: "Ancient Records Translation",
     research: "Research Chat",
     photos: "Photo Analysis"
   };

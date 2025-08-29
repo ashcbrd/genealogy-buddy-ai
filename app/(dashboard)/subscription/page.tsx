@@ -102,7 +102,7 @@ export default function SubscriptionPage() {
         usage: {
           documents: 0,
           dna: 0,
-          trees: 0,
+          translations: 0,
           research: 0,
           photos: 0,
         },
@@ -390,15 +390,15 @@ export default function SubscriptionPage() {
                         )}
                       </li>
                       <li className="flex items-center gap-2 text-sm">
-                        {limits.trees === -1 ? (
+                        {limits.translations === -1 ? (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>Unlimited research trees</span>
+                            <span>Unlimited translations</span>
                           </>
                         ) : (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>{limits.trees} research trees</span>
+                            <span>{limits.translations} translations</span>
                           </>
                         )}
                       </li>

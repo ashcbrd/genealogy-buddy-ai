@@ -34,7 +34,7 @@ import { Footer } from "@/components/footer";
 type ToolId =
   | "document-analyzer"
   | "dna-interpreter"
-  | "tree-builder"
+  | "ancient-records-translator"
   | "research-copilot"
   | "photo-storyteller";
 
@@ -86,20 +86,20 @@ const TOOLS: Tool[] = [
     href: "/tools/dna-interpreter",
   },
   {
-    id: "tree-builder",
-    name: "Research Tree Builder",
+    id: "ancient-records-translator",
+    name: "Ancient Records Translator",
     description:
-      "Construct evidence-based genealogical trees with AI-powered analysis and relationship validation for research purposes",
+      "Professional OCR, translation, and genealogical fact extraction from historical documents with contextual explanations",
     icon: TreePine,
-    tone: "trees" as const,
+    tone: "translations" as const,
     features: [
-      "AI-powered suggestions",
-      "Relationship validation",
-      "GEDCOM export",
-      "Visual tree builder",
-      "Probability scoring",
+      "OCR transcription",
+      "Multi-language translation",
+      "Genealogical fact extraction",
+      "Historical context tooltips",
+      "Structured JSON output",
     ],
-    href: "/tools/tree-builder",
+    href: "/tools/ancient-records-translator",
     popular: true,
   },
   {
@@ -147,7 +147,7 @@ const TONE = {
     ring: "var(--lineage-dna)",
     wash: "color-mix(in oklab, var(--lineage-dna) 16%, transparent)",
   },
-  trees: {
+  translations: {
     ring: "var(--lineage-birth)",
     wash: "color-mix(in oklab, var(--lineage-birth) 16%, transparent)",
   },
@@ -185,7 +185,7 @@ export default function ToolsPage() {
     const toolKeyMap = {
       "document-analyzer": "documents",
       "dna-interpreter": "dna", 
-      "tree-builder": "trees",
+      "ancient-records-translator": "translations",
       "research-copilot": "research",
       "photo-storyteller": "photos",
     } as const;

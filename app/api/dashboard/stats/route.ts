@@ -49,9 +49,12 @@ export async function GET() {
     const dnaCount =
       analyses.find((a: AnalysisGroup) => a.type === "DNA")?._count._all ?? 0;
 
+    const translationsCount =
+      analyses.find((a: AnalysisGroup) => a.type === "TRANSLATION")?._count._all ?? 0;
+
     const stats = {
       documentsAnalyzed: docsCount,
-      treesBuilt: await prisma.familyTree.count({ where: { userId } }),
+      translationsCompleted: translationsCount,
       dnaAnalyses: dnaCount,
       photosEnhanced: await prisma.photo.count({ where: { userId } }),
     };
@@ -61,10 +64,10 @@ export async function GET() {
         used: usage.find((u: UsageRecord) => u.type === "DOCUMENT")?.count ?? 0,
         limit: limits.documents,
       },
-      trees: {
+      translations: {
         used:
-          usage.find((u: UsageRecord) => u.type === "FAMILY_TREE")?.count ?? 0,
-        limit: limits.trees,
+          usage.find((u: UsageRecord) => u.type === "TRANSLATION")?.count ?? 0,
+        limit: limits.translations,
       },
       dna: {
         used: usage.find((u: UsageRecord) => u.type === "DNA")?.count ?? 0,

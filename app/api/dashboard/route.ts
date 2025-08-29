@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     }, {} as Record<string, { used: number; limit: number | boolean; remaining: number }>);
 
     // Add missing tools with zero usage
-    const toolTypes: AnalysisType[] = ['DOCUMENT', 'DNA', 'FAMILY_TREE', 'PHOTO', 'RESEARCH'];
+    const toolTypes: AnalysisType[] = ['DOCUMENT', 'DNA', 'TRANSLATION', 'PHOTO', 'RESEARCH'];
     toolTypes.forEach(type => {
       const toolKey = type.toLowerCase().replace('_', '');
       if (!usageStats[toolKey]) {
@@ -73,10 +73,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Get family trees count
-    const treeCount = await prisma.familyTree.count({
+    // Get translations count
+    const translationCount = await prisma.analysis.count({
       where: { 
         userId,
+        type: 'TRANSLATION',
         deletedAt: null,
       },
     });
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
       usage: usageStats,
       counts: {
         documents: documentCount,
-        trees: treeCount,
+        translations: translationCount,
         photos: photoCount,
         analyses: analysisCount,
       },

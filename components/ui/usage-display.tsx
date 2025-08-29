@@ -212,10 +212,10 @@ export function UsageDisplay() {
           />
 
           <ToolUsageBar
-            label="Family Trees"
-            used={usageData.usage.trees.used}
-            limit={usageData.usage.trees.limit}
-            unlimited={usageData.usage.trees.unlimited}
+            label="Translations"
+            used={usageData.usage.translations.used}
+            limit={usageData.usage.translations.limit}
+            unlimited={usageData.usage.translations.unlimited}
             icon={<div className="h-4 w-4 rounded bg-pink-500" />}
           />
         </div>
@@ -241,7 +241,7 @@ export function UsageDisplay() {
 }
 
 interface ToolUsageIndicatorProps {
-  tool: "documents" | "dna" | "photos" | "research" | "trees";
+  tool: "documents" | "dna" | "photos" | "research" | "translations";
   showLabel?: boolean;
 }
 
@@ -263,7 +263,7 @@ export function ToolUsageIndicator({
     dna: "DNA",
     photos: "Photos",
     research: "Research",
-    trees: "Trees",
+    translations: "Translations",
   };
 
   if (usage.unlimited) {

@@ -8,7 +8,7 @@ import { Crown, Info, AlertTriangle, Lock, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 interface UsageInfoProps {
-  tool: "documents" | "dna" | "photos" | "research" | "trees";
+  tool: "documents" | "dna" | "photos" | "research" | "translations";
 }
 
 export function UsageInfo({ tool }: UsageInfoProps) {
@@ -22,7 +22,7 @@ export function UsageInfo({ tool }: UsageInfoProps) {
     dna: "DNA Analysis",
     photos: "Photo Analysis",
     research: "Research Chat",
-    trees: "Family Tree Builder",
+    translations: "Ancient Records Translator",
   };
 
   const toolName = toolNames[tool];

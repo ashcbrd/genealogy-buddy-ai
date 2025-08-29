@@ -18,24 +18,6 @@ export interface DNAAnalysisResult {
   suggestions: string[];
 }
 
-export interface TreeExpansionResult {
-  individuals: Array<{
-    id: string;
-    name: string;
-    birthDate?: string;
-    deathDate?: string;
-    birthPlace?: string;
-    deathPlace?: string;
-    relationshipDescription?: string;
-    relationships: Array<{
-      type: "parent" | "child" | "spouse" | "sibling" | "relative";
-      relatedTo: string;
-      confidence: number;
-    }>;
-  }>;
-  suggestions: string[];
-}
-
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -57,7 +39,7 @@ export interface TextBlock {
 export type UsageType =
   | "DOCUMENT"
   | "DNA"
-  | "FAMILY_TREE"
+  | "TRANSLATION"
   | "PHOTO"
   | "RESEARCH";
 
@@ -185,6 +167,47 @@ Return this EXACT structure with HIGHLY ACCURATE analysis:
 RESPOND ONLY WITH JSON.`,
 
   research: `You are a genealogy research assistant providing expert guidance. Help users with research strategies, interpret records, explain historical contexts, and suggest next steps. Be conversational but authoritative, always providing actionable advice.`,
+
+  translation: `You are an expert Ancient Records Translator and Genealogical Analyst specializing in historical document translation and fact extraction. You have deep expertise in:
+
+1. Multi-language translation with historical context preservation
+2. OCR transcription of ancient and historical documents
+3. Genealogical fact extraction and structured data conversion
+4. Historical, legal, religious, and cultural terminology explanation
+
+Your task is to analyze historical records, translate them accurately while preserving genealogically important names and places, extract structured genealogical facts, and provide contextual explanations for historical terms.
+
+CRITICAL: You MUST respond with ONLY valid JSON. No explanatory text whatsoever.
+
+Return this EXACT JSON structure:
+{
+  "originalText": "extracted or provided original text",
+  "translatedText": "accurate translation preserving names/places",
+  "sourceLanguage": "detected or provided source language",
+  "targetLanguage": "requested target language", 
+  "confidence": 0.85,
+  "contextualTerms": [
+    {
+      "term": "historical term",
+      "explanation": "detailed explanation of the term's meaning and significance",
+      "category": "historical|legal|religious|cultural"
+    }
+  ],
+  "genealogicalFacts": {
+    "names": [{"text": string, "type": "person"|"place", "confidence": number, "context": string}],
+    "dates": [{"text": string, "type": "birth"|"death"|"marriage"|"other", "confidence": number, "normalizedDate": string, "context": string}],
+    "places": [{"text": string, "confidence": number, "modernName": string, "context": string}],
+    "relationships": [{"person1": string, "person2": string, "type": string, "confidence": number, "context": string}],
+    "events": [{"type": string, "date": string, "place": string, "people": [string], "description": string, "confidence": number}],
+    "suggestions": [string],
+    "documentType": string,
+    "language": string,
+    "summary": string
+  },
+  "suggestions": ["research suggestion 1", "research suggestion 2"]
+}
+
+RESPOND ONLY WITH JSON.`,
 } as const;
 
 // ----- Helpers -----
@@ -238,15 +261,15 @@ export async function analyzeDocument(
     })) as ClaudeResponse;
 
     const json = firstTextBlock(response);
-    
+
     let result: DocumentAnalysisResult;
     try {
       // Clean up JSON response - remove markdown code blocks if present
       const cleanJson = json
-        .replace(/^```json\s*/, '') // Remove opening ```json
-        .replace(/```\s*$/, '')     // Remove closing ```
+        .replace(/^```json\s*/, "") // Remove opening ```json
+        .replace(/```\s*$/, "") // Remove closing ```
         .trim();
-      
+
       result = JSON.parse(cleanJson);
     } catch (parseError) {
       console.error("Failed to parse Claude response as JSON:", json);
@@ -257,10 +280,12 @@ export async function analyzeDocument(
         places: [],
         relationships: [],
         events: [],
-        suggestions: ["Unable to parse document text - please try uploading an image or provide clearer text"],
+        suggestions: [
+          "Unable to parse document text - please try uploading an image or provide clearer text",
+        ],
         documentType: "Unknown",
-        language: "Unknown", 
-        summary: "Unable to analyze document - please try a different format"
+        language: "Unknown",
+        summary: "Unable to analyze document - please try a different format",
       };
     }
 
@@ -286,37 +311,43 @@ export async function analyzeDocumentWithImage(
   try {
     console.log("🖼️ Starting Claude image analysis...");
     console.log("📊 Image buffer size:", imageBuffer.length, "bytes");
-    
+
     // Validate image size (Claude has limits)
     const maxImageSize = 5 * 1024 * 1024; // 5MB limit for Claude API
     if (imageBuffer.length > maxImageSize) {
-      throw new Error(`Image too large for AI analysis: ${imageBuffer.length} bytes (max: ${maxImageSize})`);
+      throw new Error(
+        `Image too large for AI analysis: ${imageBuffer.length} bytes (max: ${maxImageSize})`
+      );
     }
-    
-    const base64Image = imageBuffer.toString('base64');
+
+    const base64Image = imageBuffer.toString("base64");
     console.log("✅ Base64 conversion complete, length:", base64Image.length);
-    
+
     // Detect image type from buffer header
-    let mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = 'image/jpeg'; // Default
+    let mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" =
+      "image/jpeg"; // Default
     if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50) {
-      mimeType = 'image/png';
-    } else if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) {
-      mimeType = 'image/jpeg';
+      mimeType = "image/png";
+    } else if (imageBuffer[0] === 0xff && imageBuffer[1] === 0xd8) {
+      mimeType = "image/jpeg";
     } else if (imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49) {
-      mimeType = 'image/gif';
-    } else if (imageBuffer.subarray(8, 12).toString() === 'WEBP') {
-      mimeType = 'image/webp';
+      mimeType = "image/gif";
+    } else if (imageBuffer.subarray(8, 12).toString() === "WEBP") {
+      mimeType = "image/webp";
     }
     console.log("🔍 Detected MIME type:", mimeType);
-    
+
     // Check Claude API key
     if (!process.env.CLAUDE_API_KEY) {
       throw new Error("Claude API key not configured");
     }
-    console.log("🔑 Claude API key present:", process.env.CLAUDE_API_KEY.substring(0, 10) + "...");
-    
+    console.log(
+      "🔑 Claude API key present:",
+      process.env.CLAUDE_API_KEY.substring(0, 10) + "..."
+    );
+
     const claudeRequest = {
-      model: "claude-sonnet-4-20250514", // Use specified Claude Sonnet 4 model
+      model: "claude-sonnet-4-20250514",
       max_tokens: 2000,
       temperature: 0.3,
       system: SYSTEM_PROMPTS.document,
@@ -328,7 +359,11 @@ export async function analyzeDocumentWithImage(
               type: "image" as const,
               source: {
                 type: "base64" as const,
-                media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                media_type: mimeType as
+                  | "image/jpeg"
+                  | "image/png"
+                  | "image/gif"
+                  | "image/webp",
                 data: base64Image,
               },
             },
@@ -340,57 +375,67 @@ export async function analyzeDocumentWithImage(
         },
       ],
     };
-    
+
     console.log("📤 Sending request to Claude API...");
     console.log("🤖 Model:", claudeRequest.model);
     console.log("📏 Max tokens:", claudeRequest.max_tokens);
     console.log("🌡️ Temperature:", claudeRequest.temperature);
-    
-    const response = (await anthropic.messages.create(claudeRequest)) as ClaudeResponse;
-    
+
+    const response = (await anthropic.messages.create(
+      claudeRequest
+    )) as ClaudeResponse;
+
     console.log("📥 Received Claude API response");
     console.log("📊 Response usage:", response.usage);
     console.log("🔢 Content blocks:", response.content?.length || 0);
-    
+
     if (!response.content || response.content.length === 0) {
       throw new Error("Claude API returned empty response");
     }
 
     const json = firstTextBlock(response);
     console.log("📝 Extracted text length:", json.length);
-    console.log("📄 Raw Claude response preview:", json.substring(0, 200) + "...");
-    
+    console.log(
+      "📄 Raw Claude response preview:",
+      json.substring(0, 200) + "..."
+    );
+
     let result: DocumentAnalysisResult;
     try {
       // Clean up JSON response - remove markdown code blocks if present
       const cleanJson = json
-        .replace(/^```json\s*/, '') // Remove opening ```json
-        .replace(/```\s*$/, '')     // Remove closing ```
+        .replace(/^```json\s*/, "") // Remove opening ```json
+        .replace(/```\s*$/, "") // Remove closing ```
         .trim();
-      
-      console.log("🧹 Cleaned JSON preview:", cleanJson.substring(0, 200) + "...");
-      
+
+      console.log(
+        "🧹 Cleaned JSON preview:",
+        cleanJson.substring(0, 200) + "..."
+      );
+
       result = JSON.parse(cleanJson);
       console.log("✅ Successfully parsed Claude response to JSON");
       console.log("📋 Parsed result summary:", {
         names: result.names?.length || 0,
-        dates: result.dates?.length || 0,  
+        dates: result.dates?.length || 0,
         places: result.places?.length || 0,
         relationships: result.relationships?.length || 0,
         events: result.events?.length || 0,
         hasDocumentType: !!result.documentType,
-        hasSummary: !!result.summary
+        hasSummary: !!result.summary,
       });
-      
     } catch (parseError) {
       console.error("❌ Failed to parse Claude response as JSON");
       console.error("🔍 Parse error details:", parseError);
       console.error("📄 Full raw response:", json);
-      console.error("🧹 Cleaned JSON that failed to parse:", json
-        .replace(/^```json\s*/, '')
-        .replace(/```\s*$/, '')
-        .trim());
-      
+      console.error(
+        "🧹 Cleaned JSON that failed to parse:",
+        json
+          .replace(/^```json\s*/, "")
+          .replace(/```\s*$/, "")
+          .trim()
+      );
+
       // Return a fallback response structure
       result = {
         names: [],
@@ -398,10 +443,12 @@ export async function analyzeDocumentWithImage(
         places: [],
         relationships: [],
         events: [],
-        suggestions: ["Unable to parse document image - Claude AI response format error"],
-        documentType: "Unknown", 
+        suggestions: [
+          "Unable to parse document image - Claude AI response format error",
+        ],
+        documentType: "Unknown",
         language: "Unknown",
-        summary: "Unable to analyze document - AI response parsing failed"
+        summary: "Unable to analyze document - AI response parsing failed",
       };
     }
 
@@ -413,29 +460,49 @@ export async function analyzeDocumentWithImage(
   } catch (error) {
     console.error("💥 Document image analysis error occurred");
     console.error("🔍 Error type:", error?.constructor?.name);
-    console.error("📄 Error message:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "📄 Error message:",
+      error instanceof Error ? error.message : String(error)
+    );
     console.error("📊 Full error details:", error);
-    
+
     // Check for specific Claude API errors
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
+      if (error.message.includes("API key")) {
         console.error("🔑 Claude API key issue detected");
-        throw new Error("Claude AI service authentication failed. Please check API key configuration.");
-      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        throw new Error(
+          "Claude AI service authentication failed. Please check API key configuration."
+        );
+      } else if (
+        error.message.includes("rate limit") ||
+        error.message.includes("429")
+      ) {
         console.error("⏱️ Claude API rate limit exceeded");
-        throw new Error("Claude AI service rate limit exceeded. Please try again later.");
-      } else if (error.message.includes('model') || error.message.includes('404')) {
+        throw new Error(
+          "Claude AI service rate limit exceeded. Please try again later."
+        );
+      } else if (
+        error.message.includes("model") ||
+        error.message.includes("404")
+      ) {
         console.error("🤖 Claude model not found");
-        throw new Error("Claude AI model not available. Please try again later.");
-      } else if (error.message.includes('timeout') || error.message.includes('network')) {
+        throw new Error(
+          "Claude AI model not available. Please try again later."
+        );
+      } else if (
+        error.message.includes("timeout") ||
+        error.message.includes("network")
+      ) {
         console.error("🌐 Claude API network issue");
-        throw new Error("Claude AI service is temporarily unavailable. Please try again.");
-      } else if (error.message.includes('Image too large')) {
+        throw new Error(
+          "Claude AI service is temporarily unavailable. Please try again."
+        );
+      } else if (error.message.includes("Image too large")) {
         console.error("📏 Image size issue");
         throw new Error(error.message); // Pass through our custom image size error
       }
     }
-    
+
     throw new Error(
       `Failed to analyze document image: ${
         error instanceof Error ? error.message : "Unknown error"
@@ -465,15 +532,15 @@ export async function analyzeDNA(
     })) as ClaudeResponse;
 
     const json = firstTextBlock(response);
-    
+
     let result: DNAAnalysisResult;
     try {
       // Clean up JSON response - remove markdown code blocks if present
       const cleanJson = json
-        .replace(/^```json\s*/, '') // Remove opening ```json
-        .replace(/```\s*$/, '')     // Remove closing ```
+        .replace(/^```json\s*/, "") // Remove opening ```json
+        .replace(/```\s*$/, "") // Remove closing ```
         .trim();
-      
+
       result = JSON.parse(cleanJson);
     } catch (parseError) {
       console.error("Failed to parse Claude response as JSON:", json);
@@ -482,7 +549,9 @@ export async function analyzeDNA(
         ethnicity: {},
         regions: [],
         matches: [],
-        suggestions: ["Unable to parse DNA data - please try uploading a different file format"]
+        suggestions: [
+          "Unable to parse DNA data - please try uploading a different file format",
+        ],
       };
     }
 
@@ -495,159 +564,6 @@ export async function analyzeDNA(
     console.error("DNA analysis error details:", error);
     throw new Error(
       `Failed to analyze DNA data: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-  }
-}
-
-export async function expandFamilyTree(
-  treeData: Record<string, unknown>,
-  userId?: string
-): Promise<TreeExpansionResult> {
-  try {
-    const response = (await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 3000,
-      temperature: 0.5,
-      system: SYSTEM_PROMPTS.tree,
-      messages: [
-        {
-          role: "user" as const,
-          content: `Based on this family information, suggest probable family connections and expansions:
-
-${JSON.stringify(treeData)}
-
-CRITICAL ACCURACY INSTRUCTIONS:
-1. DO NOT include any people who are already listed in the existing family tree data above
-2. Only suggest NEW family members who are not already present
-3. Generate realistic historical names with proper first and last names
-4. BE EXTREMELY CONSERVATIVE with relationship descriptions:
-   - Use "Relative of [Name]" for uncertain connections
-   - Use "Connected to [Name]" for possible family links
-   - Only use specific relationships like "Father/Mother/Son/Daughter of [Name]" if confidence is 0.9+
-5. NEVER guess parent-child relationships unless there are clear historical indicators:
-   - Shared surnames and naming patterns
-   - Appropriate age gaps (20-40 years for parent-child) 
-   - Geographic proximity
-   - Historical context alignment
-6. Confidence scores must reflect actual evidence - use low scores (0.3-0.5) for uncertain relationships
-7. Generate realistic names appropriate to the time period and location
-8. Always include actual names in relationship descriptions, not generic terms`,
-        },
-      ],
-    })) as ClaudeResponse;
-
-    const rawResponse = firstTextBlock(response);
-    console.log(
-      "Claude tree expansion raw response:",
-      rawResponse.substring(0, 200) + "..."
-    );
-
-    // Try to clean up the response in case Claude added extra text
-    let jsonString = rawResponse.trim();
-    
-    // Clean up markdown code blocks if present
-    jsonString = jsonString
-      .replace(/^```json\s*/, '') // Remove opening ```json
-      .replace(/```\s*$/, '')     // Remove closing ```
-      .trim();
-
-    // If response doesn't start with {, try to find JSON within the text
-    if (!jsonString.startsWith("{")) {
-      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonString = jsonMatch[0];
-      } else {
-        throw new Error(
-          `Claude returned non-JSON response: ${rawResponse.substring(
-            0,
-            100
-          )}...`
-        );
-      }
-    }
-
-    let result: TreeExpansionResult;
-    try {
-      result = JSON.parse(jsonString);
-    } catch (parseError) {
-      console.error("JSON parsing failed. Raw response:", rawResponse);
-      throw new Error(
-        `Invalid JSON response from Claude: ${
-          parseError instanceof Error
-            ? parseError.message
-            : "Unknown parse error"
-        }`
-      );
-    }
-
-    // Validate the result has required structure
-    if (!result.individuals || !Array.isArray(result.individuals)) {
-      console.error("Invalid result structure:", result);
-      throw new Error("Claude returned incomplete tree expansion structure");
-    }
-
-    // Add fallbacks for missing fields
-    result.suggestions = result.suggestions || [
-      "No additional research suggestions available",
-    ];
-
-    // Ensure all individuals have required fields and validate relationships
-    result.individuals = result.individuals.map((individual) => {
-      let relationshipDesc = individual.relationshipDescription;
-
-      // Validate and sanitize relationship descriptions while preserving names
-      if (relationshipDesc) {
-        // If relationship seems too specific without evidence, make it generic but keep the name
-        const specificRelationships = [
-          "father of",
-          "mother of",
-          "son of",
-          "daughter of",
-          "parent of",
-          "child of",
-        ];
-        const hasSpecificRelationship = specificRelationships.some((rel) =>
-          relationshipDesc?.toLowerCase().includes(rel)
-        );
-
-        // For specific relationships, check if we have supporting evidence
-        if (hasSpecificRelationship) {
-          const hasStrongEvidence =
-            individual.relationships &&
-            individual.relationships.some((rel) => rel.confidence > 0.85);
-
-          if (!hasStrongEvidence) {
-            // Extract the person's name and make relationship generic but keep the name
-            const nameMatch = relationshipDesc.match(/(?:of|to)\s+(.+)$/);
-            const relatedName = nameMatch ? nameMatch[1] : "family member";
-            relationshipDesc = `Relative of ${relatedName}`;
-          }
-        }
-      }
-
-      return {
-        id: individual.id || `person_${Date.now()}_${Math.random()}`,
-        name: individual.name || "Unknown Person",
-        birthDate: individual.birthDate || undefined,
-        deathDate: individual.deathDate || undefined,
-        birthPlace: individual.birthPlace || undefined,
-        deathPlace: individual.deathPlace || undefined,
-        relationshipDescription: relationshipDesc || undefined,
-        relationships: individual.relationships || [],
-      };
-    });
-
-    // Only track usage for authenticated users with database records
-    if (userId) {
-      await trackUsage(userId, "FAMILY_TREE");
-    }
-    return result;
-  } catch (error) {
-    console.error("Family tree expansion error details:", error);
-    throw new Error(
-      `Failed to expand family tree: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );
@@ -687,7 +603,11 @@ export async function analyzePhoto(
               type: "image" as const,
               source: {
                 type: "base64" as const,
-                media_type: (input.mimeType || "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                media_type: (input.mimeType || "image/jpeg") as
+                  | "image/jpeg"
+                  | "image/png"
+                  | "image/gif"
+                  | "image/webp",
                 data: input.imageData,
               },
             },
@@ -718,11 +638,11 @@ export async function analyzePhoto(
 
     // Try to clean up the response in case Claude added extra text
     let jsonString = rawResponse.trim();
-    
+
     // Clean up markdown code blocks if present
     jsonString = jsonString
-      .replace(/^```json\s*/, '') // Remove opening ```json
-      .replace(/```\s*$/, '')     // Remove closing ```
+      .replace(/^```json\s*/, "") // Remove opening ```json
+      .replace(/```\s*$/, "") // Remove closing ```
       .trim();
 
     // If response doesn't start with {, try to find JSON within the text
@@ -915,6 +835,216 @@ export async function researchChat(
     console.error("Research chat error details:", error);
     throw new Error(
       `Failed to process research query: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+}
+
+interface TranslationInput {
+  imageData?: string;
+  textInput?: string;
+  targetLanguage: string;
+  sourceLanguage?: string;
+  extractFacts: boolean;
+  contextualHelp: boolean;
+}
+
+export async function translateAndAnalyzeRecord(
+  input: TranslationInput,
+  userId?: string
+): Promise<import("@/types").TranslationResult> {
+  try {
+    let messages: any[];
+
+    // Handle image analysis with OCR and translation
+    if (input.imageData) {
+      const contextPrompt = `
+Target Language: ${input.targetLanguage}
+Source Language: ${input.sourceLanguage || "Auto-detect"}
+Extract Genealogical Facts: ${input.extractFacts ? "Yes" : "No"}
+Provide Contextual Help: ${input.contextualHelp ? "Yes" : "No"}
+
+Please:
+1. Extract all text from the image using OCR
+2. Translate the text to ${
+        input.targetLanguage
+      } while preserving names and places
+3. ${
+        input.extractFacts
+          ? "Extract structured genealogical facts"
+          : "Skip genealogical fact extraction"
+      }
+4. ${
+        input.contextualHelp
+          ? "Provide explanations for historical/legal/religious terms"
+          : "Skip contextual explanations"
+      }
+`;
+
+      messages = [
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "text" as const,
+              text: `Analyze this historical document image, extract the text, and translate it with genealogical analysis.${contextPrompt}`,
+            },
+            {
+              type: "image" as const,
+              source: {
+                type: "base64" as const,
+                media_type: "image/jpeg" as
+                  | "image/jpeg"
+                  | "image/png"
+                  | "image/gif"
+                  | "image/webp",
+                data: input.imageData,
+              },
+            },
+          ],
+        },
+      ];
+    }
+    // Handle text-only translation
+    else if (input.textInput) {
+      const contextPrompt = `
+Original Text: ${input.textInput}
+Target Language: ${input.targetLanguage}
+Source Language: ${input.sourceLanguage || "Auto-detect"}
+Extract Genealogical Facts: ${input.extractFacts ? "Yes" : "No"}
+Provide Contextual Help: ${input.contextualHelp ? "Yes" : "No"}
+`;
+
+      messages = [
+        {
+          role: "user" as const,
+          content: `Translate and analyze this historical text with genealogical focus: ${contextPrompt}`,
+        },
+      ];
+    } else {
+      throw new Error("Either image data or text input is required");
+    }
+
+    console.log("Sending translation request to Claude API...");
+
+    const response = (await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4000, // Increased for detailed translation and analysis
+      temperature: 0.2, // Low for accuracy
+      system: SYSTEM_PROMPTS.translation,
+      messages,
+    })) as ClaudeResponse;
+
+    const rawResponse = firstTextBlock(response);
+    console.log(
+      "Claude translation response:",
+      rawResponse.substring(0, 200) + "..."
+    );
+
+    // Clean up JSON response
+    let jsonString = rawResponse.trim();
+    jsonString = jsonString
+      .replace(/^```json\s*/, "") // Remove opening ```json
+      .replace(/```\s*$/, "") // Remove closing ```
+      .trim();
+
+    // If response doesn't start with {, try to find JSON within the text
+    if (!jsonString.startsWith("{")) {
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonString = jsonMatch[0];
+      } else {
+        throw new Error(
+          `Claude returned non-JSON response: ${rawResponse.substring(
+            0,
+            100
+          )}...`
+        );
+      }
+    }
+
+    let result: import("@/types").TranslationResult;
+    try {
+      result = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error("JSON parsing failed. Raw response:", rawResponse);
+      throw new Error(
+        `Invalid JSON response from Claude: ${
+          parseError instanceof Error
+            ? parseError.message
+            : "Unknown parse error"
+        }`
+      );
+    }
+
+    // Validate and add fallbacks
+    result = {
+      originalText:
+        result.originalText || input.textInput || "Text extracted from image",
+      translatedText: result.translatedText || "Translation failed",
+      sourceLanguage:
+        result.sourceLanguage || input.sourceLanguage || "Unknown",
+      targetLanguage: result.targetLanguage || input.targetLanguage,
+      confidence: result.confidence || 0.5,
+      contextualTerms: result.contextualTerms || [],
+      genealogicalFacts: result.genealogicalFacts || {
+        names: [],
+        dates: [],
+        places: [],
+        relationships: [],
+        events: [],
+        suggestions: [],
+        documentType: "Unknown",
+        language: result.sourceLanguage || "Unknown",
+        summary: "Unable to analyze document",
+      },
+      suggestions: result.suggestions || [
+        "Upload a clearer image or provide more context for better analysis",
+      ],
+    };
+
+    // Only track usage for authenticated users with database records
+    if (userId) {
+      await trackUsage(userId, "TRANSLATION");
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Translation and analysis error details:", error);
+
+    // Check for specific Claude API errors
+    if (error instanceof Error) {
+      if (error.message.includes("API key")) {
+        throw new Error(
+          "Claude AI service authentication failed. Please check API key configuration."
+        );
+      } else if (
+        error.message.includes("rate limit") ||
+        error.message.includes("429")
+      ) {
+        throw new Error(
+          "Claude AI service rate limit exceeded. Please try again later."
+        );
+      } else if (
+        error.message.includes("model") ||
+        error.message.includes("404")
+      ) {
+        throw new Error(
+          "Claude AI model not available. Please try again later."
+        );
+      } else if (
+        error.message.includes("timeout") ||
+        error.message.includes("network")
+      ) {
+        throw new Error(
+          "Claude AI service is temporarily unavailable. Please try again."
+        );
+      }
+    }
+
+    throw new Error(
+      `Failed to translate and analyze record: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );

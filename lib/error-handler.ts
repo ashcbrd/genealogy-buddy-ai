@@ -67,7 +67,7 @@ export class RateLimitError extends Error {
 }
 
 interface ErrorHandlerOptions {
-  toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree';
+  toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation';
   operation?: string;
   status?: number;
   error: any;
@@ -126,13 +126,13 @@ export function getToolErrorMessage({ toolType, operation, status, error }: Erro
   return getToolSpecificErrorMessage(toolType, operation, error);
 }
 
-function getToolDisplayName(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree'): string {
+function getToolDisplayName(toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation'): string {
   switch (toolType) {
     case 'dna': return 'DNA analysis';
     case 'document': return 'document analysis';
     case 'photo': return 'photo analysis';
     case 'research': return 'AI research assistance';
-    case 'tree': return 'family tree operations';
+    case 'translation': return 'ancient records translation';
     default: return 'this feature';
   }
 }
@@ -156,7 +156,7 @@ export function getFileRejectionMessage(toolType: 'dna' | 'document' | 'photo', 
   return rejectionError.message;
 }
 
-function getAcceptedFormats(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree'): string {
+function getAcceptedFormats(toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation'): string {
   switch (toolType) {
     case 'dna':
       return 'TXT, CSV, or ZIP from 23andMe, AncestryDNA, or MyHeritage';
@@ -166,14 +166,14 @@ function getAcceptedFormats(toolType: 'dna' | 'document' | 'photo' | 'research' 
       return 'JPG, JPEG, PNG, WebP, BMP, or GIF';
     case 'research':
       return 'text input';
-    case 'tree':
-      return 'family member data';
+    case 'translation':
+      return 'PNG, JPG, GIF, TIFF, WebP, PDF, or text input';
     default:
       return 'supported formats';
   }
 }
 
-function getFormatTip(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree'): string {
+function getFormatTip(toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation'): string {
   switch (toolType) {
     case 'dna':
       return 'Ensure the file is from a recognized DNA testing provider.';
@@ -183,14 +183,14 @@ function getFormatTip(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tre
       return 'Historical photos work best when scanned at high quality with visible details.';
     case 'research':
       return 'Provide detailed research questions for best results.';
-    case 'tree':
-      return 'Ensure family member information is accurate and complete.';
+    case 'translation':
+      return 'For best results, use clear historical documents with visible text. Multiple languages supported.';
     default:
       return '';
   }
 }
 
-function getToolSpecificBadRequestMessage(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree', operation?: string): string {
+function getToolSpecificBadRequestMessage(toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation', operation?: string): string {
   switch (toolType) {
     case 'dna':
       return 'Invalid DNA file format. Please ensure the file contains valid genetic data from a recognized provider.';
@@ -200,21 +200,17 @@ function getToolSpecificBadRequestMessage(toolType: 'dna' | 'document' | 'photo'
       return 'Unable to process this photo. Please ensure the image shows people or historical content suitable for analysis.';
     case 'research':
       return 'Unable to process your question. Please rephrase with specific genealogy topics or research goals.';
-    case 'tree':
-      if (operation === 'AI expansion') {
-        return 'Unable to expand family tree. Please ensure existing members have complete information (names, dates, places).';
-      } else if (operation === 'saving') {
-        return 'Unable to save family tree. Please check that all family members have valid names.';
-      } else if (operation === 'exporting') {
-        return 'Unable to export family tree. Please ensure your tree has at least one family member with valid information.';
+    case 'translation':
+      if (operation === 'translation and analysis') {
+        return 'Unable to translate this record. Please ensure the document contains readable text or upload a clearer image.';
       }
-      return 'Invalid request data. Please check your family tree information and try again.';
+      return 'Invalid request data. Please provide either a clear image or text input for translation.';
     default:
       return 'Unable to process your request. Please check your input and try again.';
   }
 }
 
-function getToolSpecificErrorMessage(toolType: 'dna' | 'document' | 'photo' | 'research' | 'tree', operation?: string, error?: any): string {
+function getToolSpecificErrorMessage(toolType: 'dna' | 'document' | 'photo' | 'research' | 'translation', operation?: string, error?: any): string {
   const errorMsg = error?.message?.toLowerCase() || '';
   
   // Handle parsing/processing errors
@@ -244,15 +240,15 @@ function getToolSpecificErrorMessage(toolType: 'dna' | 'document' | 'photo' | 'r
     return 'Unable to read text from document. Please ensure high image quality with good contrast and clear text.';
   }
   
-  if (toolType === 'tree') {
-    if (operation === 'AI expansion' && errorMsg.includes('insufficient')) {
-      return 'Not enough information for AI suggestions. Please add more details like dates and places to existing members.';
+  if (toolType === 'translation') {
+    if (operation === 'translation and analysis' && errorMsg.includes('language')) {
+      return 'Unable to detect or translate the language. Please specify the source language or provide clearer text.';
     }
-    if (operation === 'saving' && errorMsg.includes('validation')) {
-      return 'Invalid family tree data. Please check that all members have proper names and valid dates.';
+    if (operation === 'translation and analysis' && errorMsg.includes('ocr')) {
+      return 'Unable to read text from image. Please provide a clearer, higher-resolution image.';
     }
-    if (operation === 'exporting' && (errorMsg.includes('gedcom') || errorMsg.includes('empty'))) {
-      return 'Cannot export family tree. Please ensure your tree has valid family data.';
+    if (errorMsg.includes('format') || errorMsg.includes('unsupported')) {
+      return 'Unsupported document format. Please provide text input or upload an image (PNG, JPG, PDF).';
     }
   }
   

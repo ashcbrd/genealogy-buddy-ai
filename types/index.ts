@@ -39,7 +39,7 @@ export type Credentials = {
 export interface SubscriptionLimits {
   documents: number;
   dna: number;
-  trees: number;
+  translations: number;
   research: number;
   photos: number;
   gedcomExport: boolean;
@@ -51,7 +51,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     FREE: {
       documents: 2,
       dna: 0,
-      trees: 1,
+      translations: 2,
       research: 5,
       photos: 0,
       gedcomExport: false,
@@ -60,7 +60,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     EXPLORER: {
       documents: 10,
       dna: 5,
-      trees: 3,
+      translations: 10,
       research: -1, // unlimited
       photos: 5,
       gedcomExport: false,
@@ -69,7 +69,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     RESEARCHER: {
       documents: 50,
       dna: 15,
-      trees: 10,
+      translations: 50,
       research: -1,
       photos: 25,
       gedcomExport: true,
@@ -78,7 +78,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     PROFESSIONAL: {
       documents: -1, // unlimited
       dna: -1,
-      trees: -1,
+      translations: -1,
       research: -1,
       photos: -1,
       gedcomExport: true,
@@ -87,7 +87,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
     ADMIN: {
       documents: -1, // unlimited admin access
       dna: -1,
-      trees: -1,
+      translations: -1,
       research: -1,
       photos: -1,
       gedcomExport: true,
@@ -164,18 +164,20 @@ export interface DNAAnalysisResult {
   suggestions: string[];
 }
 
-export interface FamilyTreeNode {
-  id: string;
-  firstName: string;
-  lastName: string;
-  birthDate?: string;
-  deathDate?: string;
-  birthPlace?: string;
-  deathPlace?: string;
-  parentIds: string[];
-  childrenIds: string[];
+export interface TranslationResult {
+  id?: string;
+  originalText: string;
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
   confidence: number;
-  aiGenerated: boolean;
+  contextualTerms: Array<{
+    term: string;
+    explanation: string;
+    category: "historical" | "legal" | "religious" | "cultural";
+  }>;
+  genealogicalFacts: DocumentAnalysisResult;
+  suggestions: string[];
 }
 
 export interface PhotoAnalysisResult {
@@ -220,24 +222,21 @@ export interface ResearchChatRequest {
 }
 
 // ----------------------
-// Family Tree Expansion
+// Translation API Results
 // ----------------------
 
-export interface TreeExpansionResult {
-  individuals: Array<{
-    id: string;
-    name?: string | null;
-    birth?: string | null;
-    death?: string | null;
-    places?: string[] | null;
-  }>;
-  relationships: Array<{
-    fromId: string;
-    toId: string;
-    type: string; // "parent", "spouse", "sibling"
-    probability: number; // 0..1
-  }>;
-  suggestions?: string[];
+export interface TranslationRequest {
+  imageData?: string;
+  textInput?: string;
+  sourceLanguage?: string;
+  targetLanguage: string;
+  extractFacts: boolean;
+  contextualHelp: boolean;
+}
+
+export interface TranslationApiResult {
+  translation: TranslationResult;
+  analysisId?: string;
 }
 
 // ----------------------
@@ -247,7 +246,7 @@ export interface TreeExpansionResult {
 export type UsageType =
   | "DOCUMENT"
   | "DNA"
-  | "FAMILY_TREE"
+  | "TRANSLATION"
   | "PHOTO"
   | "RESEARCH";
 
@@ -274,50 +273,29 @@ export interface JsonObject {
 export type JsonArray = JsonValue[];
 
 // ----------------------
-// Tree Builder UI + API payloads
+// Ancient Records Translator UI + API payloads
 // ----------------------
 
-export interface FamilyMember {
-  id: string;
-  firstName: string;
-  lastName: string;
-  birthDate?: string;
-  deathDate?: string;
-  birthPlace?: string;
-  deathPlace?: string;
-  parentIds: string[];
-  confidence: number; // 0..1
-  aiGenerated: boolean;
-  relationshipToUser?: string; // e.g., "Father of John Smith", "Mother of Jane Doe"
+export interface TranslationFormData {
+  textInput: string;
+  targetLanguage: string;
+  extractFacts: boolean;
+  contextualHelp: boolean;
+  sourceLanguage?: string;
 }
 
-export interface NewMemberForm {
-  firstName: string;
-  lastName: string;
-  birthDate: string;
-  deathDate: string;
-  birthPlace: string;
-  deathPlace: string;
+export interface AnalyzeRecordRequest {
+  imageData?: string;
+  textInput?: string;
+  targetLanguage: string;
+  sourceLanguage?: string;
+  extractFacts: boolean;
+  contextualHelp: boolean;
 }
 
-export interface ExpandTreeRequest {
-  members: FamilyMember[];
-  treeName: string;
-}
-export interface ExpandTreeResponse {
-  suggestedMembers: FamilyMember[];
-}
-
-export interface SaveTreeRequest {
-  name: string;
-  members: FamilyMember[];
-}
-export interface SaveTreeResponse {
-  treeId: string;
-}
-
-export interface ExportGedcomRequest {
-  members: FamilyMember[];
+export interface AnalyzeRecordResponse {
+  translation: TranslationResult;
+  analysisId?: string;
 }
 
 // ----------------------
@@ -327,7 +305,7 @@ export interface ExportGedcomRequest {
 export type UsageCounterKey =
   | "documents"
   | "dna"
-  | "trees"
+  | "translations"
   | "research"
   | "photos";
 
@@ -426,7 +404,7 @@ export interface ApiErrorResponse {
 
 export interface DashboardStats {
   documentsAnalyzed: number;
-  treesBuilt: number;
+  translationsCompleted: number;
   dnaAnalyses: number;
   photosEnhanced: number;
   researchQuestions: number;
@@ -438,7 +416,7 @@ export interface DashboardStats {
 /** Per-tool usage counters (used/limit) for the current month */
 export interface UsageCounters {
   documents: { used: number; limit: number };
-  trees: { used: number; limit: number };
+  translations: { used: number; limit: number };
   dna: { used: number; limit: number };
   photos: { used: number; limit: number };
   research: { used: number; limit: number };
@@ -448,7 +426,7 @@ export interface UsageCounters {
 export type RecentActivityType =
   | "document"
   | "dna"
-  | "tree"
+  | "translation"
   | "research"
   | "photo";
 export type ActivityStatus = "completed" | "processing" | "failed";
@@ -466,15 +444,15 @@ export interface UsageTrend {
   month: string; // e.g., "2025-03" or "Mar"
   documents: number;
   dna: number;
-  trees: number;
+  translations: number;
   photos: number;
   research: number;
 }
 
 /** Tool usage pie data (right column) */
-export type ToolKey = "documents" | "dna" | "trees" | "photos" | "research";
+export type ToolKey = "documents" | "dna" | "translations" | "photos" | "research";
 export interface ToolUsageSlice {
-  name: "Documents" | "DNA" | "Trees" | "Photos" | "Research";
+  name: "Documents" | "DNA" | "Translations" | "Photos" | "Research";
   value: number;
   color: string;
 }

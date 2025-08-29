@@ -15,7 +15,8 @@
       "Bash(grep:*)",
       "Bash(npx next:*)",
       "Bash(npx prisma:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": [],

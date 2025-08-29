@@ -121,7 +121,7 @@ function getAnalysisTypeKey(type: AnalysisType): keyof typeof SUBSCRIPTION_LIMIT
   switch (type) {
     case 'DOCUMENT': return 'documents';
     case 'DNA': return 'dna';
-    case 'FAMILY_TREE': return 'trees';
+    case 'TRANSLATION': return 'translations';
     case 'RESEARCH': return 'research';
     case 'PHOTO': return 'photos';
     default: return 'documents';

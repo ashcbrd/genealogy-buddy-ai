@@ -64,18 +64,18 @@ export async function GET(req: NextRequest) {
           createdAt: { gte: startOfMonth },
         },
       }),
-      // Family tree analysis count
+      // Translation analysis count
       prisma.analysis.count({
         where: {
           userId,
-          type: AnalysisType.FAMILY_TREE,
+          type: AnalysisType.TRANSLATION,
           createdAt: { gte: startOfMonth },
           deletedAt: null,
         },
       }),
     ]);
 
-    const [documentsUsed, dnaUsed, photosUsed, researchUsed, treesUsed] = usageCounts;
+    const [documentsUsed, dnaUsed, photosUsed, researchUsed, translationsUsed] = usageCounts;
 
     const usage = {
       documents: {
@@ -98,10 +98,10 @@ export async function GET(req: NextRequest) {
         limit: limits.research,
         unlimited: limits.research === -1,
       },
-      trees: {
-        used: treesUsed,
-        limit: limits.trees,
-        unlimited: limits.trees === -1,
+      translations: {
+        used: translationsUsed,
+        limit: limits.translations,
+        unlimited: limits.translations === -1,
       },
     };
 

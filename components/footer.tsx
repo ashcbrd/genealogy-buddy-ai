@@ -49,10 +49,10 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/tools/tree-builder"
+                  href="/tools/ancient-records-translator"
                   className="hover:text-foreground transition-colors"
                 >
-                  Research Tree Builder
+                  Ancient Records Translator
                 </Link>
               </li>
               <li>
