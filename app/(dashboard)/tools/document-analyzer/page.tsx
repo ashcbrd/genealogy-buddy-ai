@@ -61,54 +61,13 @@ import {
 import { useToolAccess } from "@/hooks/use-user-status";
 import { useDocumentHistory } from "@/hooks/use-document-history";
 
-export interface AnalysisResult {
-  id?: string;
-  names: Array<{
-    text: string;
-    type: "person" | "place";
-    confidence: number;
-    context?: string;
-  }>;
-  dates: Array<{
-    text: string;
-    type: "birth" | "death" | "marriage" | "other";
-    confidence: number;
-    normalizedDate?: string;
-    context?: string;
-  }>;
-  places: Array<{
-    text: string;
-    confidence: number;
-    modernName?: string;
-    coordinates?: { lat: number; lng: number };
-    context?: string;
-  }>;
-  relationships: Array<{
-    person1: string;
-    person2: string;
-    type: string;
-    confidence: number;
-    context?: string;
-  }>;
-  events: Array<{
-    type: string;
-    date?: string;
-    place?: string;
-    people: string[];
-    description: string;
-    confidence: number;
-  }>;
-  suggestions: string[];
-  documentType?: string;
-  language?: string;
-  summary?: string;
-}
+import type { DocumentAnalysisResult } from "@/types";
 
 interface SavedDocument {
   id: string;
   filename: string;
   uploadedAt: string;
-  analysis?: AnalysisResult;
+  analysis?: DocumentAnalysisResult;
   notes?: string;
   tags?: string[];
 }
@@ -117,7 +76,7 @@ export default function DocumentAnalyzerPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysis, setAnalysis] = useState<DocumentAnalysisResult | null>(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("upload");
   const [selectedDocument, setSelectedDocument] =
@@ -995,7 +954,7 @@ export default function DocumentAnalyzerPage() {
                                       <User className="w-3 h-3" />
                                       {
                                         doc.analysis.names.filter(
-                                          (n: any) => n.type === "person"
+                                          (n) => n.type === "person"
                                         ).length
                                       }{" "}
                                       people

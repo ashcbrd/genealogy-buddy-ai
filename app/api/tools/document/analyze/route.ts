@@ -12,6 +12,8 @@ import type {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("🔍 Document analyze endpoint called");
+    
     // Comprehensive security validation
     const securityValidation = await validateApiSecurity(req, {
       requireAuth: true,
@@ -21,6 +23,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!securityValidation.allowed) {
+      console.error("❌ Security validation failed:", securityValidation.error);
       return NextResponse.json(
         { 
           error: securityValidation.error?.message || "Access denied",
@@ -32,27 +35,51 @@ export async function POST(req: NextRequest) {
 
     const { session, context } = securityValidation;
     const userId = session!.user.id;
+    console.log("✅ Security validation passed for user:", userId);
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+      console.log("📋 FormData parsed successfully");
+    } catch (formDataError) {
+      console.error("❌ Failed to parse FormData:", formDataError);
+      return NextResponse.json(
+        { error: "Invalid request format. Please ensure you're uploading a file correctly." },
+        { status: 400 }
+      );
+    }
+
     const file = formData.get("file") as File | null;
     const documentId = formData.get("documentId") as string | null;
+    
+    console.log("📁 Request data:", {
+      hasFile: !!file,
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileType: file?.type,
+      documentId: documentId
+    });
 
     if (!file && !documentId) {
+      console.error("❌ No file or document ID provided");
       return NextResponse.json(
-        { error: "No file or document ID provided" },
+        { error: "No file or document ID provided. Please select a file to analyze." },
         { status: 400 }
       );
     }
 
     // Validate file upload if file is provided
     if (file) {
+      console.log("🔍 Validating file upload...");
       const fileValidation = await validateFileUpload(file, context);
       if (!fileValidation.allowed) {
+        console.error("❌ File validation failed:", fileValidation.reason);
         return NextResponse.json(
-          { error: fileValidation.reason },
+          { error: fileValidation.reason || "File validation failed" },
           { status: 400 }
         );
       }
+      console.log("✅ File validation passed");
     }
 
     let analysis: DocumentAnalysisResult;
@@ -72,14 +99,17 @@ export async function POST(req: NextRequest) {
           ].includes(file.type));
 
       if (!isImage) {
+        console.error("❌ Unsupported file type:", file.type);
         return NextResponse.json(
-          { error: "Unsupported file type. Please upload an image." },
+          { error: "Unsupported file type. Please upload an image (PNG, JPG, JPEG, GIF, BMP, TIFF, WEBP)." },
           { status: 415 }
         );
       }
 
+      console.log("🔄 Converting file to buffer...");
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      console.log("📊 Buffer created, size:", buffer.length, "bytes");
 
       // Create document record first
       const savedDocument = await prisma.document.create({
@@ -96,7 +126,16 @@ export async function POST(req: NextRequest) {
       createdDocumentId = savedDocument.id;
 
       // Analyze document with Claude
+      console.log("🧠 Starting Claude analysis...");
       analysis = await analyzeDocumentWithImage(buffer, userId);
+      console.log("✅ Claude analysis completed:", {
+        namesFound: analysis.names?.length || 0,
+        datesFound: analysis.dates?.length || 0,
+        placesFound: analysis.places?.length || 0,
+        eventsFound: analysis.events?.length || 0,
+        hasDocumentType: !!analysis.documentType,
+        hasSummary: !!analysis.summary
+      });
     } else if (documentId) {
       // Get OCR text from existing document
       const document = await prisma.document.findFirst({
@@ -155,10 +194,34 @@ export async function POST(req: NextRequest) {
     
     return response;
   } catch (error) {
-    console.error("Document analysis error:", error);
+    console.error("💥 Document analysis error:", error);
+    
+    // Provide more specific error messages based on the error type
+    let errorMessage = "Failed to analyze document";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      if (error.message.includes("Failed to parse FormData")) {
+        errorMessage = "Invalid file upload format. Please try uploading the file again.";
+        statusCode = 400;
+      } else if (error.message.includes("File size") || error.message.includes("too large")) {
+        errorMessage = "File is too large. Please upload a file smaller than 10MB.";
+        statusCode = 400;
+      } else if (error.message.includes("Claude") || error.message.includes("API")) {
+        errorMessage = "AI analysis service is temporarily unavailable. Please try again in a few moments.";
+        statusCode = 503;
+      } else if (error.message.includes("database") || error.message.includes("prisma")) {
+        errorMessage = "Database error. Please try again.";
+        statusCode = 500;
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to analyze document" },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      },
+      { status: statusCode }
     );
   }
 }

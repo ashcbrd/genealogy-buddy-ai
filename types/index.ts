@@ -106,27 +106,46 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionTier, SubscriptionLimits> =
 // ----------------------
 
 export interface DocumentAnalysisResult {
+  id?: string;
   names: Array<{
     text: string;
     type: "person" | "place";
     confidence: number;
+    context?: string;
   }>;
   dates: Array<{
     text: string;
     type: "birth" | "death" | "marriage" | "other";
     confidence: number;
+    normalizedDate?: string;
+    context?: string;
   }>;
   places: Array<{
     text: string;
     confidence: number;
+    modernName?: string;
+    coordinates?: { lat: number; lng: number };
+    context?: string;
   }>;
   relationships: Array<{
     person1: string;
     person2: string;
     type: string;
     confidence: number;
+    context?: string;
+  }>;
+  events: Array<{
+    type: string;
+    date?: string;
+    place?: string;
+    people: string[];
+    description: string;
+    confidence: number;
   }>;
   suggestions: string[];
+  documentType?: string;
+  language?: string;
+  summary?: string;
 }
 
 export interface DNAAnalysisResult {

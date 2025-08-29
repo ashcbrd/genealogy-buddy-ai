@@ -14,7 +14,8 @@
       "Bash(npx prisma migrate:*)",
       "Bash(grep:*)",
       "Bash(npx next:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": [],

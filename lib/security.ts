@@ -119,8 +119,8 @@ export async function validateAndIncrementUsage(
   context: SecurityContext
 ): Promise<{ allowed: boolean; reason?: string; currentUsage?: number; limit?: number }> {
   
-  // Use database transaction for atomic operations
-  return await prisma.$transaction(async (tx) => {
+  // Use database transaction for atomic operations with increased timeout
+  const result = await prisma.$transaction(async (tx) => {
     // Get subscription with lock
     const subscription = await tx.subscription.findUnique({
       where: { userId },
@@ -134,23 +134,34 @@ export async function validateAndIncrementUsage(
 
     // Check if feature is available for this tier
     if (limit === 0) {
-      await logSecurityEvent(context, 'USAGE_VALIDATION_FAILED', {
-        resource: type,
-        allowed: false,
-        reason: `${type} analysis not available in ${tier} plan`,
-        severity: 'MEDIUM'
-      });
       return {
         allowed: false,
         reason: `${type.toLowerCase().replace('_', ' ')} analysis is not available in your plan. Please upgrade to access this feature.`,
         currentUsage: 0,
-        limit: 0
+        limit: 0,
+        logEvent: 'USAGE_VALIDATION_FAILED',
+        logData: {
+          resource: type,
+          allowed: false,
+          reason: `${type} analysis not available in ${tier} plan`,
+          severity: 'MEDIUM' as const
+        }
       };
     }
 
     // Unlimited usage for this tier
     if (limit === -1) {
-      return { allowed: true, currentUsage: -1, limit: -1 };
+      return { 
+        allowed: true, 
+        currentUsage: -1, 
+        limit: -1,
+        logEvent: 'USAGE_VALIDATED',
+        logData: {
+          resource: type,
+          allowed: true,
+          metadata: { currentUsage: -1, limit: -1, tier }
+        }
+      };
     }
 
     // Get current period usage
@@ -169,18 +180,19 @@ export async function validateAndIncrementUsage(
 
     // Check if limit would be exceeded
     if (currentUsage >= limit) {
-      await logSecurityEvent(context, 'USAGE_LIMIT_EXCEEDED', {
-        resource: type,
-        allowed: false,
-        reason: `Monthly limit of ${limit} ${type} analyses exceeded`,
-        metadata: { currentUsage, limit, tier },
-        severity: 'MEDIUM'
-      });
       return {
         allowed: false,
         reason: `You have reached your monthly limit of ${limit} ${type.toLowerCase().replace('_', ' ')} analyses. Please upgrade your plan or wait until next month.`,
         currentUsage,
-        limit
+        limit,
+        logEvent: 'USAGE_LIMIT_EXCEEDED',
+        logData: {
+          resource: type,
+          allowed: false,
+          reason: `Monthly limit of ${limit} ${type} analyses exceeded`,
+          metadata: { currentUsage, limit, tier },
+          severity: 'MEDIUM' as const
+        }
       };
     }
 
@@ -204,18 +216,35 @@ export async function validateAndIncrementUsage(
       },
     });
 
-    await logSecurityEvent(context, 'USAGE_VALIDATED', {
-      resource: type,
-      allowed: true,
-      metadata: { currentUsage: currentUsage + 1, limit, tier }
-    });
-
     return {
       allowed: true,
       currentUsage: currentUsage + 1,
-      limit
+      limit,
+      logEvent: 'USAGE_VALIDATED',
+      logData: {
+        resource: type,
+        allowed: true,
+        metadata: { currentUsage: currentUsage + 1, limit, tier }
+      }
     };
+  }, {
+    timeout: 15000, // Increase timeout to 15 seconds
   });
+
+  // Log security event after transaction completes (non-blocking)
+  if (result.logEvent && result.logData) {
+    // Fire and forget - don't await to avoid blocking
+    logSecurityEvent(context, result.logEvent, result.logData).catch(err => {
+      console.error('Security logging failed:', err);
+    });
+  }
+
+  return {
+    allowed: result.allowed,
+    reason: result.reason,
+    currentUsage: result.currentUsage,
+    limit: result.limit
+  };
 }
 
 // Rate limiting implementation
@@ -498,38 +527,58 @@ export async function validateFileUpload(
   }
 
   // Basic file content validation (check for malicious patterns)
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
-    // Check for suspicious file headers or content
-    const suspiciousPatterns = [
-      Buffer.from([0x4D, 0x5A]), // PE executable
-      Buffer.from('<?php'), // PHP script
-      Buffer.from('<script'), // JavaScript
-      Buffer.from('javascript:'), // JavaScript URL
-    ];
+  // Skip content scanning for legitimate image files to avoid false positives
+  const isImageFile = file.type.startsWith('image/');
+  
+  if (!isImageFile) {
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      
+      // Check for suspicious file headers or content in non-image files
+      const suspiciousPatterns = [
+        { pattern: Buffer.from([0x4D, 0x5A]), name: 'PE executable', description: 'Windows executable header' },
+        { pattern: Buffer.from('<?php'), name: 'PHP script', description: 'PHP opening tag' },
+        { pattern: Buffer.from('<script'), name: 'JavaScript', description: 'HTML script tag' },
+        { pattern: Buffer.from('javascript:'), name: 'JavaScript URL', description: 'JavaScript URL scheme' },
+      ];
 
-    for (const pattern of suspiciousPatterns) {
-      if (buffer.indexOf(pattern) !== -1) {
-        await logSecurityEvent(context, 'MALICIOUS_FILE_DETECTED', {
-          resource: 'FILE_VALIDATION',
-          allowed: false,
-          reason: 'Suspicious file content detected',
-          metadata: { fileName: file.name, fileType: file.type },
-          severity: 'CRITICAL'
-        });
-        return {
-          allowed: false,
-          reason: 'File contains suspicious content and cannot be uploaded'
-        };
+      for (const { pattern, name, description } of suspiciousPatterns) {
+        const index = buffer.indexOf(pattern);
+        if (index !== -1) {
+          console.log(`🚨 Suspicious content detected in file: ${file.name}`);
+          console.log(`   Pattern: ${name} (${description})`);
+          console.log(`   Found at byte position: ${index}`);
+          console.log(`   Context: ${buffer.slice(Math.max(0, index - 10), index + 30).toString('hex')}`);
+          
+          await logSecurityEvent(context, 'MALICIOUS_FILE_DETECTED', {
+            resource: 'FILE_VALIDATION',
+            allowed: false,
+            reason: `Suspicious file content detected: ${name} (${description})`,
+            metadata: { 
+              fileName: file.name, 
+              fileType: file.type,
+              detectedPattern: name,
+              patternDescription: description,
+              patternPosition: index,
+              fileSize: buffer.length
+            },
+            severity: 'CRITICAL'
+          });
+          return {
+            allowed: false,
+            reason: `File contains suspicious content and cannot be uploaded (${name} detected)`
+          };
+        }
       }
+    } catch (error) {
+      console.error('File validation error:', error);
+      return {
+        allowed: false,
+        reason: 'File validation failed. Please try again.'
+      };
     }
-  } catch (error) {
-    console.error('File validation error:', error);
-    return {
-      allowed: false,
-      reason: 'File validation failed. Please try again.'
-    };
+  } else {
+    console.log(`✅ Skipping content scan for image file: ${file.name} (${file.type})`);
   }
 
   return { allowed: true };

@@ -2,23 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./prisma";
 import type { PhotoAnalysisResult } from "@/types";
 
-// Claude-specific types
-export interface DocumentAnalysisResult {
-  names: Array<{ text: string; type: "person" | "place"; confidence: number }>;
-  dates: Array<{
-    text: string;
-    type: "birth" | "death" | "marriage" | "other";
-    confidence: number;
-  }>;
-  places: Array<{ text: string; confidence: number }>;
-  relationships: Array<{
-    person1: string;
-    person2: string;
-    type: string;
-    confidence: number;
-  }>;
-  suggestions: string[];
-}
+// Import the unified type from types/index.ts
+import type { DocumentAnalysisResult } from "@/types";
 
 export interface DNAAnalysisResult {
   ethnicity: Record<string, number>;
@@ -84,13 +69,17 @@ const anthropic = new Anthropic({
 const SYSTEM_PROMPTS = {
   genealogy: `You are GenealogyAI, an expert family history researcher with deep knowledge of genealogical records, historical contexts, and research methodologies. Analyze genealogy data with confidence scores (0-1), provide detailed historical context, and suggest concrete research directions. Always format responses as structured JSON with confidence scores and actionable research suggestions.`,
 
-  document: `You are an expert genealogical document analyzer. Extract all genealogical information from historical documents including names, dates, places, and relationships. For each piece of information, provide a confidence score (0-1) based on clarity and context. Return results in strict JSON format with the following structure:
+  document: `You are an expert genealogical document analyzer. Extract all genealogical information from historical documents including names, dates, places, relationships, and events. For each piece of information, provide a confidence score (0-1) based on clarity and context. Return results in strict JSON format with the following structure:
   {
-    "names": [{"text": string, "type": "person"|"place", "confidence": number}],
-    "dates": [{"text": string, "type": "birth"|"death"|"marriage"|"other", "confidence": number}],
-    "places": [{"text": string, "confidence": number}],
-    "relationships": [{"person1": string, "person2": string, "type": string, "confidence": number}],
-    "suggestions": [string]
+    "names": [{"text": string, "type": "person"|"place", "confidence": number, "context": string}],
+    "dates": [{"text": string, "type": "birth"|"death"|"marriage"|"other", "confidence": number, "normalizedDate": string, "context": string}],
+    "places": [{"text": string, "confidence": number, "modernName": string, "context": string}],
+    "relationships": [{"person1": string, "person2": string, "type": string, "confidence": number, "context": string}],
+    "events": [{"type": string, "date": string, "place": string, "people": [string], "description": string, "confidence": number}],
+    "suggestions": [string],
+    "documentType": string,
+    "language": string,
+    "summary": string
   }`,
 
   dna: `You are a genetic genealogy expert. Analyze DNA data to provide ethnicity breakdowns, migration patterns, and relationship interpretations. Include historical context for genetic populations and migration events.
@@ -242,77 +231,8 @@ export async function analyzeDocument(
       system: SYSTEM_PROMPTS.document,
       messages: [
         {
-          role: "user",
+          role: "user" as const,
           content: `Analyze this historical document text for genealogical information:\n\n${text}`,
-        },
-      ],
-    })) as ClaudeResponse;
-
-    const json = firstTextBlock(response);
-    // Clean up JSON response - remove markdown code blocks if present
-    const cleanJson = json
-      .replace(/^```json\s*/, '') // Remove opening ```json
-      .replace(/```\s*$/, '')     // Remove closing ```
-      .trim();
-    
-    const result: DocumentAnalysisResult = JSON.parse(cleanJson);
-
-    // Only track usage for authenticated users with database records
-    if (userId) {
-      await trackUsage(userId, "DOCUMENT");
-    }
-    return result;
-  } catch (error) {
-    console.error("Document analysis error details:", error);
-    throw new Error(
-      `Failed to analyze document: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-  }
-}
-
-export async function analyzeDocumentWithImage(
-  imageBuffer: Buffer,
-  userId?: string
-): Promise<DocumentAnalysisResult> {
-  try {
-    const base64Image = imageBuffer.toString('base64');
-    
-    // Detect image type from buffer header
-    let mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = 'image/jpeg'; // Default
-    if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50) {
-      mimeType = 'image/png';
-    } else if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) {
-      mimeType = 'image/jpeg';
-    } else if (imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49) {
-      mimeType = 'image/gif';
-    } else if (imageBuffer.subarray(8, 12).toString() === 'WEBP') {
-      mimeType = 'image/webp';
-    }
-    
-    const response = (await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      temperature: 0.3,
-      system: SYSTEM_PROMPTS.document,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mimeType,
-                data: base64Image,
-              },
-            },
-            {
-              type: "text",
-              text: "Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image and provide structured genealogical data.",
-            },
-          ],
         },
       ],
     })) as ClaudeResponse;
@@ -336,7 +256,11 @@ export async function analyzeDocumentWithImage(
         dates: [],
         places: [],
         relationships: [],
-        suggestions: ["Unable to parse document image - please try a clearer image"]
+        events: [],
+        suggestions: ["Unable to parse document text - please try uploading an image or provide clearer text"],
+        documentType: "Unknown",
+        language: "Unknown", 
+        summary: "Unable to analyze document - please try a different format"
       };
     }
 
@@ -346,7 +270,172 @@ export async function analyzeDocumentWithImage(
     }
     return result;
   } catch (error) {
-    console.error("Document image analysis error details:", error);
+    console.error("Document analysis error details:", error);
+    throw new Error(
+      `Failed to analyze document: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+}
+
+export async function analyzeDocumentWithImage(
+  imageBuffer: Buffer,
+  userId?: string
+): Promise<DocumentAnalysisResult> {
+  try {
+    console.log("🖼️ Starting Claude image analysis...");
+    console.log("📊 Image buffer size:", imageBuffer.length, "bytes");
+    
+    // Validate image size (Claude has limits)
+    const maxImageSize = 5 * 1024 * 1024; // 5MB limit for Claude API
+    if (imageBuffer.length > maxImageSize) {
+      throw new Error(`Image too large for AI analysis: ${imageBuffer.length} bytes (max: ${maxImageSize})`);
+    }
+    
+    const base64Image = imageBuffer.toString('base64');
+    console.log("✅ Base64 conversion complete, length:", base64Image.length);
+    
+    // Detect image type from buffer header
+    let mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = 'image/jpeg'; // Default
+    if (imageBuffer[0] === 0x89 && imageBuffer[1] === 0x50) {
+      mimeType = 'image/png';
+    } else if (imageBuffer[0] === 0xFF && imageBuffer[1] === 0xD8) {
+      mimeType = 'image/jpeg';
+    } else if (imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49) {
+      mimeType = 'image/gif';
+    } else if (imageBuffer.subarray(8, 12).toString() === 'WEBP') {
+      mimeType = 'image/webp';
+    }
+    console.log("🔍 Detected MIME type:", mimeType);
+    
+    // Check Claude API key
+    if (!process.env.CLAUDE_API_KEY) {
+      throw new Error("Claude API key not configured");
+    }
+    console.log("🔑 Claude API key present:", process.env.CLAUDE_API_KEY.substring(0, 10) + "...");
+    
+    const claudeRequest = {
+      model: "claude-sonnet-4-20250514", // Use specified Claude Sonnet 4 model
+      max_tokens: 2000,
+      temperature: 0.3,
+      system: SYSTEM_PROMPTS.document,
+      messages: [
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "image" as const,
+              source: {
+                type: "base64" as const,
+                media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                data: base64Image,
+              },
+            },
+            {
+              type: "text" as const,
+              text: "Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image and provide structured genealogical data.",
+            },
+          ],
+        },
+      ],
+    };
+    
+    console.log("📤 Sending request to Claude API...");
+    console.log("🤖 Model:", claudeRequest.model);
+    console.log("📏 Max tokens:", claudeRequest.max_tokens);
+    console.log("🌡️ Temperature:", claudeRequest.temperature);
+    
+    const response = (await anthropic.messages.create(claudeRequest)) as ClaudeResponse;
+    
+    console.log("📥 Received Claude API response");
+    console.log("📊 Response usage:", response.usage);
+    console.log("🔢 Content blocks:", response.content?.length || 0);
+    
+    if (!response.content || response.content.length === 0) {
+      throw new Error("Claude API returned empty response");
+    }
+
+    const json = firstTextBlock(response);
+    console.log("📝 Extracted text length:", json.length);
+    console.log("📄 Raw Claude response preview:", json.substring(0, 200) + "...");
+    
+    let result: DocumentAnalysisResult;
+    try {
+      // Clean up JSON response - remove markdown code blocks if present
+      const cleanJson = json
+        .replace(/^```json\s*/, '') // Remove opening ```json
+        .replace(/```\s*$/, '')     // Remove closing ```
+        .trim();
+      
+      console.log("🧹 Cleaned JSON preview:", cleanJson.substring(0, 200) + "...");
+      
+      result = JSON.parse(cleanJson);
+      console.log("✅ Successfully parsed Claude response to JSON");
+      console.log("📋 Parsed result summary:", {
+        names: result.names?.length || 0,
+        dates: result.dates?.length || 0,  
+        places: result.places?.length || 0,
+        relationships: result.relationships?.length || 0,
+        events: result.events?.length || 0,
+        hasDocumentType: !!result.documentType,
+        hasSummary: !!result.summary
+      });
+      
+    } catch (parseError) {
+      console.error("❌ Failed to parse Claude response as JSON");
+      console.error("🔍 Parse error details:", parseError);
+      console.error("📄 Full raw response:", json);
+      console.error("🧹 Cleaned JSON that failed to parse:", json
+        .replace(/^```json\s*/, '')
+        .replace(/```\s*$/, '')
+        .trim());
+      
+      // Return a fallback response structure
+      result = {
+        names: [],
+        dates: [],
+        places: [],
+        relationships: [],
+        events: [],
+        suggestions: ["Unable to parse document image - Claude AI response format error"],
+        documentType: "Unknown", 
+        language: "Unknown",
+        summary: "Unable to analyze document - AI response parsing failed"
+      };
+    }
+
+    // Only track usage for authenticated users with database records
+    if (userId) {
+      await trackUsage(userId, "DOCUMENT");
+    }
+    return result;
+  } catch (error) {
+    console.error("💥 Document image analysis error occurred");
+    console.error("🔍 Error type:", error?.constructor?.name);
+    console.error("📄 Error message:", error instanceof Error ? error.message : String(error));
+    console.error("📊 Full error details:", error);
+    
+    // Check for specific Claude API errors
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        console.error("🔑 Claude API key issue detected");
+        throw new Error("Claude AI service authentication failed. Please check API key configuration.");
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        console.error("⏱️ Claude API rate limit exceeded");
+        throw new Error("Claude AI service rate limit exceeded. Please try again later.");
+      } else if (error.message.includes('model') || error.message.includes('404')) {
+        console.error("🤖 Claude model not found");
+        throw new Error("Claude AI model not available. Please try again later.");
+      } else if (error.message.includes('timeout') || error.message.includes('network')) {
+        console.error("🌐 Claude API network issue");
+        throw new Error("Claude AI service is temporarily unavailable. Please try again.");
+      } else if (error.message.includes('Image too large')) {
+        console.error("📏 Image size issue");
+        throw new Error(error.message); // Pass through our custom image size error
+      }
+    }
+    
     throw new Error(
       `Failed to analyze document image: ${
         error instanceof Error ? error.message : "Unknown error"
@@ -367,7 +456,7 @@ export async function analyzeDNA(
       system: SYSTEM_PROMPTS.dna,
       messages: [
         {
-          role: "user",
+          role: "user" as const,
           content: `Analyze this DNA data for genealogical insights:\n\n${JSON.stringify(
             dnaData
           )}`,
@@ -424,7 +513,7 @@ export async function expandFamilyTree(
       system: SYSTEM_PROMPTS.tree,
       messages: [
         {
-          role: "user",
+          role: "user" as const,
           content: `Based on this family information, suggest probable family connections and expansions:
 
 ${JSON.stringify(treeData)}
@@ -588,17 +677,17 @@ export async function analyzePhoto(
 
       messages = [
         {
-          role: "user",
+          role: "user" as const,
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Analyze this historical photograph with expert precision. Pay special attention to military uniforms, clothing styles, photographic techniques, and all visual details that can help determine the time period and context accurately.${contextPrompt}`,
             },
             {
-              type: "image",
+              type: "image" as const,
               source: {
-                type: "base64",
-                media_type: input.mimeType || "image/jpeg",
+                type: "base64" as const,
+                media_type: (input.mimeType || "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
                 data: input.imageData,
               },
             },
@@ -610,7 +699,7 @@ export async function analyzePhoto(
     else {
       messages = [
         {
-          role: "user",
+          role: "user" as const,
           content: `Analyze this historical photo based on the following description:\n\n${input.textDescription}`,
         },
       ];

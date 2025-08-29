@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { AnalysisResult } from "@/app/(dashboard)/tools/document-analyzer/page";
+import type { DocumentAnalysisResult } from "@/types";
 
 interface DocumentRecord {
   id: string;
@@ -33,7 +33,7 @@ interface SavedDocument {
   id: string;
   filename: string;
   uploadedAt: string;
-  analysis?: AnalysisResult;
+  analysis?: DocumentAnalysisResult;
   notes?: string;
   tags?: string[];
 }
@@ -67,7 +67,7 @@ export function useDocumentHistory() {
         id: doc.id,
         filename: doc.filename,
         uploadedAt: doc.createdAt,
-        analysis: doc.analysis?.result as AnalysisResult | undefined,
+        analysis: doc.analysis?.result as DocumentAnalysisResult | undefined,
         // TODO: Add notes and tags when implemented
         notes: undefined,
         tags: undefined,
