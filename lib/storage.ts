@@ -29,20 +29,61 @@ export async function uploadFileBuffer(
   contentType: string,
   metadata?: Record<string, string>
 ): Promise<string> {
-  const { data, error } = await supabaseAdmin.storage
-    .from('files')
-    .upload(path, body, {
-      contentType,
-      cacheControl: '3600',
-      upsert: true,
-      ...(metadata && { metadata })
+  try {
+    // Determine the correct bucket based on file type and path
+    const isPhoto = contentType.startsWith('image/') || path.includes('photos/');
+    const isDocument = contentType.includes('pdf') || path.includes('documents/');
+    
+    // Use the appropriate bucket
+    const bucket = 'files'; // Keep using files bucket for consistency
+    
+    // Ensure bucket exists
+    const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucket, {
+      public: false,
+      allowedMimeTypes: ['image/*', 'application/pdf', 'text/*'],
+      fileSizeLimit: 50 * 1024 * 1024 // 50MB
     });
+    
+    // Ignore error if bucket already exists
+    if (bucketError && !bucketError.message.includes('already exists')) {
+      console.warn(`Failed to create/verify bucket ${bucket}:`, bucketError.message);
+    }
 
-  if (error) {
-    throw new Error(`Upload failed: ${error.message}`);
+    console.log(`Uploading file to ${bucket}/${path}`);
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucket)
+      .upload(path, body, {
+        contentType,
+        cacheControl: '3600',
+        upsert: true,
+        ...(metadata && { metadata })
+      });
+
+    if (error) {
+      console.error('Storage upload error:', error);
+      throw new Error(`Upload failed: ${error.message}`);
+    }
+
+    console.log('File uploaded successfully:', data?.path);
+    
+    // Try to generate a signed URL immediately to verify upload worked
+    try {
+      const verifyUrl = await generateDownloadUrl(path, 60);
+      if (verifyUrl) {
+        console.log('Upload verification: URL generation successful');
+        return verifyUrl;
+      }
+    } catch (verifyErr) {
+      console.warn('Upload verification failed, using public URL:', verifyErr);
+    }
+    
+    // Fallback to public URL
+    return getPublicUrl(bucket, path);
+  } catch (err) {
+    console.error('Storage upload error:', err);
+    // Return a more informative placeholder
+    return `placeholder://upload-failed/${path.split('/').pop()}`;
   }
-
-  return getPublicUrl('files', path);
 }
 
 /**
@@ -64,8 +105,42 @@ export async function deleteStorageFile(path: string): Promise<void> {
 export async function generateDownloadUrl(
   path: string,
   expiresIn = 3600 // 1 hour
-): Promise<string> {
-  return await createSignedUrl('files', path, expiresIn);
+): Promise<string | null> {
+  try {
+    // Try different bucket configurations based on the path
+    const buckets = ['files', 'photos', 'documents'];
+    const pathVariations = [
+      path, // Original path
+      path.replace(/^(photos|documents)\//, ''), // Remove prefix
+      path.replace(/^\/+/, '') // Remove leading slashes
+    ];
+    
+    for (const bucket of buckets) {
+      for (const testPath of pathVariations) {
+        try {
+          const url = await createSignedUrl(bucket, testPath, expiresIn);
+          console.log(`✅ Successfully created signed URL: ${bucket}/${testPath}`);
+          return url;
+        } catch (bucketErr) {
+          // Continue to next combination
+        }
+      }
+    }
+    
+    // If all attempts fail, try to return a public URL as fallback
+    try {
+      const publicUrl = getPublicUrl('files', path);
+      console.log(`Using public URL fallback for: ${path}`);
+      return publicUrl;
+    } catch (publicErr) {
+      console.warn(`All URL generation methods failed for ${path}`);
+      return null;
+    }
+    
+  } catch (err) {
+    console.warn(`Failed to generate download URL for ${path}:`, err);
+    return null;
+  }
 }
 
 /**

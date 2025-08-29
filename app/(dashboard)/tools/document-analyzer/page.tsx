@@ -59,18 +59,9 @@ import {
   getFileRejectionMessage,
 } from "@/lib/error-handler";
 import { useToolAccess } from "@/hooks/use-user-status";
-import { useDocumentHistory } from "@/hooks/use-document-history";
+import { useDocumentHistory, type SavedDocument } from "@/hooks/use-document-history";
 
 import type { DocumentAnalysisResult } from "@/types";
-
-interface SavedDocument {
-  id: string;
-  filename: string;
-  uploadedAt: string;
-  analysis?: DocumentAnalysisResult;
-  notes?: string;
-  tags?: string[];
-}
 
 export default function DocumentAnalyzerPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -88,12 +79,12 @@ export default function DocumentAnalyzerPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Use the document history hook
-  const { 
-    documents: savedDocuments, 
+  const {
+    documents: savedDocuments,
     isLoading: documentsLoading,
     error: documentsError,
     deleteDocument,
-    refresh: refreshDocuments 
+    refresh: refreshDocuments,
   } = useDocumentHistory();
 
   const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
@@ -486,389 +477,480 @@ export default function DocumentAnalyzerPage() {
           {/* Results */}
           <TabsContent value="results" className="mt-6">
             {analysis && (
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Analysis Results</CardTitle>
-                        <CardDescription>
-                          AI-extracted genealogical information
-                        </CardDescription>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const shareData = {
-                              title: "Document Analysis Results",
-                              text: `Analysis of ${file?.name || "document"}: ${
-                                analysis.names.length
-                              } names, ${analysis.dates.length} dates, ${
-                                analysis.places.length
-                              } places.`,
-                            };
-                            if (navigator.share) navigator.share(shareData);
-                            else {
-                              navigator.clipboard.writeText(shareData.text);
-                              toast("Copied to clipboard", {
-                                description: "Analysis summary copied",
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Analysis Results */}
+                <div className="lg:col-span-3 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Analysis Results</CardTitle>
+                          <CardDescription>
+                            AI-extracted genealogical information
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const shareData = {
+                                title: "Document Analysis Results",
+                                text: `Analysis of ${
+                                  file?.name || "document"
+                                }: ${analysis.names.length} names, ${
+                                  analysis.dates.length
+                                } dates, ${analysis.places.length} places.`,
+                              };
+                              if (navigator.share) navigator.share(shareData);
+                              else {
+                                navigator.clipboard.writeText(shareData.text);
+                                toast("Copied to clipboard", {
+                                  description: "Analysis summary copied",
+                                });
+                              }
+                            }}
+                          >
+                            <Share2 className="h-4 w-4 mr-1" />
+                            Share
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const dataStr = JSON.stringify(analysis, null, 2);
+                              const blob = new Blob([dataStr], {
+                                type: "application/json",
                               });
-                            }
-                          }}
-                        >
-                          <Share2 className="h-4 w-4 mr-1" />
-                          Share
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const dataStr = JSON.stringify(analysis, null, 2);
-                            const blob = new Blob([dataStr], {
-                              type: "application/json",
-                            });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `analysis-${Date.now()}.json`;
-                            a.click();
-                          }}
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Export
-                        </Button>
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `analysis-${Date.now()}.json`;
+                              a.click();
+                            }}
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Export
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardHeader>
-                </Card>
+                    </CardHeader>
+                  </Card>
 
-                {analysis.summary && (
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Document Summary</AlertTitle>
-                    <AlertDescription>{analysis.summary}</AlertDescription>
-                  </Alert>
-                )}
+                  {analysis.summary && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>Document Summary</AlertTitle>
+                      <AlertDescription>{analysis.summary}</AlertDescription>
+                    </Alert>
+                  )}
 
-                <Card>
-                  <CardContent className="p-0">
-                    <Tabs defaultValue="people" className="w-full">
-                      <TabsList className="w-full justify-start rounded-none border-b">
-                        <TabsTrigger value="people">
-                          People (
-                          {
-                            analysis.names.filter((n) => n.type === "person")
-                              .length
-                          }
-                          )
-                        </TabsTrigger>
-                        <TabsTrigger value="dates">
-                          Dates ({analysis.dates.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="places">
-                          Places ({analysis.places.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="relationships">
-                          Relations ({analysis.relationships.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="events">
-                          Events ({analysis.events?.length || 0})
-                        </TabsTrigger>
-                      </TabsList>
+                  <Card>
+                    <CardContent className="p-0">
+                      <Tabs defaultValue="people" className="w-full">
+                        <TabsList className="w-full justify-start rounded-none border-b">
+                          <TabsTrigger value="people">
+                            People (
+                            {
+                              analysis.names.filter((n) => n.type === "person")
+                                .length
+                            }
+                            )
+                          </TabsTrigger>
+                          <TabsTrigger value="dates">
+                            Dates ({analysis.dates.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="places">
+                            Places ({analysis.places.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="relationships">
+                            Relations ({analysis.relationships.length})
+                          </TabsTrigger>
+                          <TabsTrigger value="events">
+                            Events ({analysis.events?.length || 0})
+                          </TabsTrigger>
+                        </TabsList>
 
-                      <div className="p-6">
-                        <TabsContent value="people" className="mt-0">
-                          <div className="grid gap-3">
-                            {analysis.names
-                              .filter((n) => n.type === "person")
-                              .map((name, i) => (
+                        <div className="p-6">
+                          <TabsContent value="people" className="mt-0">
+                            <div className="grid gap-3">
+                              {analysis.names
+                                .filter((n) => n.type === "person")
+                                .map((name, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-center justify-between p-4 border rounded-lg"
+                                    style={confStyle(name.confidence)}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <User className="w-5 h-5" />
+                                      <div>
+                                        <p className="font-medium">
+                                          {name.text}
+                                        </p>
+                                        {name.context && (
+                                          <p className="text-sm opacity-75">
+                                            {name.context}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {confIcon(name.confidence)}
+                                      <Badge variant="outline">
+                                        {confLabel(name.confidence)}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="dates" className="mt-0">
+                            <div className="grid gap-3">
+                              {analysis.dates.map((date, i) => (
                                 <div
                                   key={i}
                                   className="flex items-center justify-between p-4 border rounded-lg"
-                                  style={confStyle(name.confidence)}
+                                  style={confStyle(date.confidence)}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <User className="w-5 h-5" />
+                                    <Calendar className="w-5 h-5" />
                                     <div>
-                                      <p className="font-medium">{name.text}</p>
-                                      {name.context && (
+                                      <p className="font-medium">{date.text}</p>
+                                      <p className="text-sm opacity-75">
+                                        Type: {date.type}
+                                        {date.normalizedDate
+                                          ? ` • ${date.normalizedDate}`
+                                          : ""}
+                                      </p>
+                                      {date.context && (
                                         <p className="text-sm opacity-75">
-                                          {name.context}
+                                          {date.context}
                                         </p>
                                       )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    {confIcon(name.confidence)}
+                                    {confIcon(date.confidence)}
                                     <Badge variant="outline">
-                                      {confLabel(name.confidence)}
+                                      {confLabel(date.confidence)}
                                     </Badge>
                                   </div>
                                 </div>
                               ))}
-                          </div>
-                        </TabsContent>
+                            </div>
+                          </TabsContent>
 
-                        <TabsContent value="dates" className="mt-0">
-                          <div className="grid gap-3">
-                            {analysis.dates.map((date, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center justify-between p-4 border rounded-lg"
-                                style={confStyle(date.confidence)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Calendar className="w-5 h-5" />
-                                  <div>
-                                    <p className="font-medium">{date.text}</p>
-                                    <p className="text-sm opacity-75">
-                                      Type: {date.type}
-                                      {date.normalizedDate
-                                        ? ` • ${date.normalizedDate}`
-                                        : ""}
-                                    </p>
-                                    {date.context && (
-                                      <p className="text-sm opacity-75">
-                                        {date.context}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {confIcon(date.confidence)}
-                                  <Badge variant="outline">
-                                    {confLabel(date.confidence)}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </TabsContent>
-
-                        <TabsContent value="places" className="mt-0">
-                          <div className="grid gap-3">
-                            {analysis.places.map((place, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center justify-between p-4 border rounded-lg"
-                                style={confStyle(place.confidence)}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <MapPin className="w-5 h-5" />
-                                  <div>
-                                    <p className="font-medium">{place.text}</p>
-                                    {place.modernName && (
-                                      <p className="text-sm opacity-75">
-                                        Modern: {place.modernName}
-                                      </p>
-                                    )}
-                                    {place.context && (
-                                      <p className="text-sm opacity-75">
-                                        {place.context}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {confIcon(place.confidence)}
-                                  <Badge variant="outline">
-                                    {confLabel(place.confidence)}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </TabsContent>
-
-                        <TabsContent value="relationships" className="mt-0">
-                          <div className="grid gap-3">
-                            {analysis.relationships.map((rel, i) => (
-                              <div
-                                key={i}
-                                className="p-4 border rounded-lg"
-                                style={confStyle(rel.confidence)}
-                              >
-                                <div className="flex items-center justify-between">
+                          <TabsContent value="places" className="mt-0">
+                            <div className="grid gap-3">
+                              {analysis.places.map((place, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center justify-between p-4 border rounded-lg"
+                                  style={confStyle(place.confidence)}
+                                >
                                   <div className="flex items-center gap-3">
-                                    <Users className="w-5 h-5" />
+                                    <MapPin className="w-5 h-5" />
                                     <div>
                                       <p className="font-medium">
-                                        {rel.person1} — {rel.person2}
+                                        {place.text}
                                       </p>
-                                      <p className="text-sm opacity-75">
-                                        Relationship: {rel.type}
-                                      </p>
-                                      {rel.context && (
+                                      {place.modernName && (
                                         <p className="text-sm opacity-75">
-                                          {rel.context}
+                                          Modern: {place.modernName}
+                                        </p>
+                                      )}
+                                      {place.context && (
+                                        <p className="text-sm opacity-75">
+                                          {place.context}
                                         </p>
                                       )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    {confIcon(rel.confidence)}
+                                    {confIcon(place.confidence)}
                                     <Badge variant="outline">
-                                      {confLabel(rel.confidence)}
+                                      {confLabel(place.confidence)}
                                     </Badge>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        </TabsContent>
+                              ))}
+                            </div>
+                          </TabsContent>
 
-                        <TabsContent value="events" className="mt-0">
-                          <div className="space-y-4">
-                            {analysis.events?.map((ev, i) => (
-                              <div key={i} className="relative pl-8">
+                          <TabsContent value="relationships" className="mt-0">
+                            <div className="grid gap-3">
+                              {analysis.relationships.map((rel, i) => (
                                 <div
-                                  className="absolute left-0 top-0 w-6 h-6 rounded-full grid place-items-center"
-                                  style={{
-                                    background: "var(--primary)",
-                                    color: "var(--primary-foreground)",
-                                  }}
+                                  key={i}
+                                  className="p-4 border rounded-lg"
+                                  style={confStyle(rel.confidence)}
                                 >
-                                  <span className="text-xs">{i + 1}</span>
-                                </div>
-                                {i < (analysis.events?.length ?? 0) - 1 && (
-                                  <div
-                                    className="absolute left-3 top-6 bottom-0 w-0.5"
-                                    style={{
-                                      background:
-                                        "color-mix(in oklab, var(--border) 70%, transparent)",
-                                    }}
-                                  />
-                                )}
-                                <div className="pb-6">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <Badge>{ev.type}</Badge>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Users className="w-5 h-5" />
+                                      <div>
+                                        <p className="font-medium">
+                                          {rel.person1} — {rel.person2}
+                                        </p>
+                                        <p className="text-sm opacity-75">
+                                          Relationship: {rel.type}
+                                        </p>
+                                        {rel.context && (
+                                          <p className="text-sm opacity-75">
+                                            {rel.context}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
                                     <div className="flex items-center gap-2">
-                                      {confIcon(ev.confidence)}
+                                      {confIcon(rel.confidence)}
                                       <Badge variant="outline">
-                                        {confLabel(ev.confidence)}
+                                        {confLabel(rel.confidence)}
                                       </Badge>
                                     </div>
                                   </div>
-                                  <p className="font-medium mb-1">
-                                    {ev.description}
-                                  </p>
-                                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                                    {ev.date && (
-                                      <span className="flex items-center gap-1">
-                                        <Calendar className="w-3 h-3" />
-                                        {ev.date}
-                                      </span>
-                                    )}
-                                    {ev.place && (
-                                      <span className="flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" />
-                                        {ev.place}
-                                      </span>
-                                    )}
-                                    {ev.people?.length ? (
-                                      <span className="flex items-center gap-1">
-                                        <Users className="w-3 h-3" />
-                                        {ev.people.join(", ")}
-                                      </span>
-                                    ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="events" className="mt-0">
+                            <div className="space-y-4">
+                              {analysis.events?.map((ev, i) => (
+                                <div key={i} className="relative pl-8">
+                                  <div
+                                    className="absolute left-0 top-0 w-6 h-6 rounded-full grid place-items-center"
+                                    style={{
+                                      background: "var(--primary)",
+                                      color: "var(--primary-foreground)",
+                                    }}
+                                  >
+                                    <span className="text-xs">{i + 1}</span>
+                                  </div>
+                                  {i < (analysis.events?.length ?? 0) - 1 && (
+                                    <div
+                                      className="absolute left-3 top-6 bottom-0 w-0.5"
+                                      style={{
+                                        background:
+                                          "color-mix(in oklab, var(--border) 70%, transparent)",
+                                      }}
+                                    />
+                                  )}
+                                  <div className="pb-6">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <Badge>{ev.type}</Badge>
+                                      <div className="flex items-center gap-2">
+                                        {confIcon(ev.confidence)}
+                                        <Badge variant="outline">
+                                          {confLabel(ev.confidence)}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <p className="font-medium mb-1">
+                                      {ev.description}
+                                    </p>
+                                    <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                                      {ev.date && (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" />
+                                          {ev.date}
+                                        </span>
+                                      )}
+                                      {ev.place && (
+                                        <span className="flex items-center gap-1">
+                                          <MapPin className="w-3 h-3" />
+                                          {ev.place}
+                                        </span>
+                                      )}
+                                      {ev.people?.length ? (
+                                        <span className="flex items-center gap-1">
+                                          <Users className="w-3 h-3" />
+                                          {ev.people.join(", ")}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        </TabsContent>
-                      </div>
-                    </Tabs>
-                  </CardContent>
-                </Card>
-
-                {analysis.suggestions.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Research Suggestions</CardTitle>
-                      <CardDescription>
-                        Next best steps based on your document
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {analysis.suggestions.map((s: string, i: number) => (
-                          <div key={i} className="flex items-start gap-3">
-                            <div className="mt-0.5 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="text-xs font-semibold text-primary">
-                                {i + 1}
-                              </span>
+                              ))}
                             </div>
-                            <p className="text-sm">{s}</p>
-                          </div>
-                        ))}
-                      </div>
+                          </TabsContent>
+                        </div>
+                      </Tabs>
                     </CardContent>
                   </Card>
-                )}
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Notes & Tags</CardTitle>
-                    <CardDescription>
-                      Add personal notes and organize with tags
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="notes">Notes</Label>
-                      <Textarea
-                        id="notes"
-                        placeholder="Add your research notes here…"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows={4}
-                        className="mt-2"
-                      />
-                    </div>
-                    <div>
-                      <Label>Tags</Label>
-                      <div className="flex gap-2 mt-2 mb-3">
-                        <Input
-                          placeholder="Add a tag"
-                          value={newTag}
-                          onChange={(e) => setNewTag(e.target.value)}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" &&
-                            (e.preventDefault(), handleAddTag())
-                          }
+                  {analysis.suggestions.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Research Suggestions</CardTitle>
+                        <CardDescription>
+                          Next best steps based on your document
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {analysis.suggestions.map((s: string, i: number) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <div className="mt-0.5 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="text-xs font-semibold text-primary">
+                                  {i + 1}
+                                </span>
+                              </div>
+                              <p className="text-sm">{s}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Notes & Tags</CardTitle>
+                      <CardDescription>
+                        Add personal notes and organize with tags
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="notes">Notes</Label>
+                        <Textarea
+                          id="notes"
+                          placeholder="Add your research notes here…"
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={4}
+                          className="mt-2"
                         />
-                        <Button onClick={handleAddTag} size="sm">
-                          Add Tag
-                        </Button>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {tags.map((t) => (
-                          <Badge key={t} variant="secondary">
-                            {t}
-                            <button
-                              onClick={() =>
-                                setTags((arr) => arr.filter((x) => x !== t))
-                              }
-                              className="ml-2 hover:text-destructive"
-                            >
-                              ×
-                            </button>
-                          </Badge>
-                        ))}
+                      <div>
+                        <Label>Tags</Label>
+                        <div className="flex gap-2 mt-2 mb-3">
+                          <Input
+                            placeholder="Add a tag"
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" &&
+                              (e.preventDefault(), handleAddTag())
+                            }
+                          />
+                          <Button onClick={handleAddTag} size="sm">
+                            Add Tag
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {tags.map((t) => (
+                            <Badge key={t} variant="secondary">
+                              {t}
+                              <button
+                                onClick={() =>
+                                  setTags((arr) => arr.filter((x) => x !== t))
+                                }
+                                className="ml-2 hover:text-destructive"
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    <Button
-                      disabled
-                      title="Notes and tags functionality coming soon"
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Notes (Coming Soon)
-                    </Button>
-                  </CardContent>
-                </Card>
+                      <Button
+                        disabled
+                        title="Notes and tags functionality coming soon"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Notes (Coming Soon)
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+                {/* Document Preview Sidebar */}
+                <div className="lg:col-span-1">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        Original Document
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(preview && file) ||
+                      (selectedDocument && selectedDocument.viewUrl && !selectedDocument.viewUrl.startsWith('placeholder://')) ? (
+                        <div className="space-y-4">
+                          <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden border">
+                            <img
+                              src={selectedDocument?.viewUrl || preview || ''}
+                              alt="Document preview"
+                              className="w-full h-full object-contain bg-gray-50"
+                              onError={(e) => {
+                                // Fall back to generic document icon if image fails to load
+                                (e.target as HTMLImageElement).style.display =
+                                  "none";
+                                const parent = (e.target as HTMLImageElement)
+                                  .parentElement;
+                                if (parent) {
+                                  parent.innerHTML =
+                                    '<div class="w-full h-full flex items-center justify-center bg-gray-100"><svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg></div>';
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Name:
+                              </span>
+                              <span className="font-medium truncate ml-2">
+                                {(
+                                  selectedDocument?.filename ||
+                                  file?.name ||
+                                  ""
+                                ).length > 20
+                                  ? `${(
+                                      selectedDocument?.filename ||
+                                      file?.name ||
+                                      ""
+                                    ).substring(0, 20)}...`
+                                  : selectedDocument?.filename ||
+                                    file?.name ||
+                                    ""}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Size:
+                              </span>
+                              <span className="font-medium">
+                                {file?.size ? formatMB(file.size) : "Unknown"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">
+                                Type:
+                              </span>
+                              <span className="font-medium">
+                                {(file?.type || "application/pdf")
+                                  .split("/")[1]
+                                  ?.toUpperCase() || "Document"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-[3/4] rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                          <div className="text-center text-gray-500">
+                            <FileText className="w-12 h-12 mx-auto mb-2" />
+                            <p className="text-sm">
+                              No document preview available
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
           </TabsContent>
@@ -915,11 +997,13 @@ export default function DocumentAnalyzerPage() {
                     <AlertDescription>{documentsError}</AlertDescription>
                   </Alert>
                 )}
-                
+
                 {documentsLoading ? (
                   <div className="text-center py-12">
                     <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Loading document history...</p>
+                    <p className="text-muted-foreground">
+                      Loading document history...
+                    </p>
                   </div>
                 ) : filteredDocuments.length ? (
                   <ScrollArea className="h-[600px]">
@@ -933,12 +1017,43 @@ export default function DocumentAnalyzerPage() {
                             if (doc.analysis) {
                               setAnalysis(doc.analysis);
                               setActiveTab("results");
+                              // Clear the current file state since we're viewing from history
+                              setFile(null);
+                              setPreview(null);
                             }
                           }}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3">
-                              <FileText className="w-5 h-5 text-primary mt-0.5" />
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                {doc.viewUrl && !doc.viewUrl.startsWith('placeholder://') ? (
+                                  // Show document thumbnail/preview if it's an image
+                                  <img
+                                    src={doc.viewUrl}
+                                    alt={doc.filename}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      // Fall back to file icon if image fails to load
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = "none";
+                                      const parent = target.parentElement;
+                                      if (parent && !parent.querySelector('.fallback-icon')) {
+                                        const fallbackDiv = document.createElement('div');
+                                        fallbackDiv.className = 'w-full h-full flex items-center justify-center fallback-icon';
+                                        fallbackDiv.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>';
+                                        parent.appendChild(fallbackDiv);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <FileText className="w-6 h-6 text-gray-400" />
+                                    {doc.viewUrl?.startsWith('placeholder://') && (
+                                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full" title="Document not available" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                               <div>
                                 <p className="font-medium">{doc.filename}</p>
                                 <p className="text-sm text-muted-foreground">

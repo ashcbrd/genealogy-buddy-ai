@@ -8,7 +8,9 @@ interface DocumentRecord {
   filename: string;
   mimeType: string;
   size: number;
+  storagePath: string;
   createdAt: string;
+  viewUrl?: string | null;
   analysis?: {
     id: string;
     type: string;
@@ -29,10 +31,11 @@ interface DocumentHistoryResponse {
   };
 }
 
-interface SavedDocument {
+export interface SavedDocument {
   id: string;
   filename: string;
   uploadedAt: string;
+  viewUrl?: string | null;
   analysis?: DocumentAnalysisResult;
   notes?: string;
   tags?: string[];
@@ -67,6 +70,7 @@ export function useDocumentHistory() {
         id: doc.id,
         filename: doc.filename,
         uploadedAt: doc.createdAt,
+        viewUrl: doc.viewUrl,
         analysis: doc.analysis?.result as DocumentAnalysisResult | undefined,
         // TODO: Add notes and tags when implemented
         notes: undefined,

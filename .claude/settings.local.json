@@ -16,7 +16,9 @@
       "Bash(npx next:*)",
       "Bash(npx prisma:*)",
       "Bash(curl:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(test:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": [],

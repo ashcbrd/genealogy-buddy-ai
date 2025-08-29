@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { analyzeDocumentWithImage } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
 import { validateApiSecurity, validateFileUpload } from "@/lib/security";
+import { uploadFileBuffer, generateFilePath } from "@/lib/storage";
 import { AnalysisType } from "@prisma/client";
 import type {
   DocumentAnalysisResult,
@@ -111,12 +112,25 @@ export async function POST(req: NextRequest) {
       const buffer = Buffer.from(arrayBuffer);
       console.log("📊 Buffer created, size:", buffer.length, "bytes");
 
-      // Create document record first
+      // Generate unique storage path
+      const storagePath = generateFilePath(userId, "documents", file.name);
+      console.log("📁 Generated storage path:", storagePath);
+
+      // Upload file to Supabase storage
+      console.log("☁️ Uploading file to storage...");
+      const fileUrl = await uploadFileBuffer(storagePath, buffer, file.type, {
+        originalName: file.name,
+        userId: userId,
+        uploadType: 'document-analysis'
+      });
+      console.log("✅ File uploaded successfully:", fileUrl);
+
+      // Create document record with actual storage path
       const savedDocument = await prisma.document.create({
         data: {
           userId,
           filename: file.name,
-          storagePath: `documents/${userId}/${Date.now()}-${file.name}`, // Temporary path - would need actual storage
+          storagePath: storagePath,
           mimeType: file.type,
           size: file.size,
           ocrText: null, // Could extract OCR text later if needed
@@ -124,6 +138,7 @@ export async function POST(req: NextRequest) {
       });
       
       createdDocumentId = savedDocument.id;
+      console.log("💾 Document record created:", savedDocument.id);
 
       // Analyze document with Claude
       console.log("🧠 Starting Claude analysis...");

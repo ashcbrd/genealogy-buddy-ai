@@ -34,6 +34,23 @@ export async function GET(req: NextRequest) {
     const [photos, total] = await Promise.all([
       prisma.photo.findMany({
         where: whereClause,
+        include: {
+          analysis: {
+            where: {
+              type: 'PHOTO',
+            },
+            select: {
+              id: true,
+              type: true,
+              confidence: true,
+              result: true,
+              suggestions: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -41,15 +58,23 @@ export async function GET(req: NextRequest) {
       prisma.photo.count({ where: whereClause }),
     ]);
 
-    // Generate signed URLs for viewing
+    // Generate signed URLs for viewing and transform analysis
     const photosWithUrls = await Promise.all(
       photos.map(async (photo) => {
         try {
           const viewUrl = await generateDownloadUrl(photo.storagePath);
-          return { ...photo, viewUrl };
+          return { 
+            ...photo, 
+            viewUrl,
+            analysis: photo.analysis.length > 0 ? photo.analysis[0] : null
+          };
         } catch (error) {
           console.warn(`Failed to generate URL for photo ${photo.id}:`, error);
-          return { ...photo, viewUrl: null };
+          return { 
+            ...photo, 
+            viewUrl: null,
+            analysis: photo.analysis.length > 0 ? photo.analysis[0] : null
+          };
         }
       })
     );

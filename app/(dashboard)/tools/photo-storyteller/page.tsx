@@ -15,7 +15,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Camera,
   Upload,
@@ -34,6 +43,10 @@ import {
   Info,
   Eye,
   Crown,
+  History,
+  Trash2,
+  Search,
+  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
@@ -45,6 +58,7 @@ import {
   getFileRejectionMessage,
 } from "@/lib/error-handler";
 import { useToolAccess } from "@/hooks/use-user-status";
+import { usePhotoHistory } from "@/hooks/use-photo-history";
 
 interface PhotoAnalysis {
   dateEstimate: {
@@ -74,12 +88,25 @@ export default function PhotoStorytellerPage() {
   const [error, setError] = useState("");
   const [description, setDescription] = useState("");
   const [activeTab, setActiveTab] = useState("story");
+  const [currentTab, setCurrentTab] = useState("upload");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
 
   const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
   const { usage, canUse } = useToolAccess("photos");
   const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
   const hasNoAccess = !canUse;
   const shouldUpgrade = isAtUsageLimit || hasNoAccess;
+
+  // Use the photo history hook
+  const { 
+    photos: savedPhotos, 
+    isLoading: photosLoading,
+    error: photosError,
+    deletePhoto,
+    refresh: refreshPhotos 
+  } = usePhotoHistory();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -155,10 +182,14 @@ export default function PhotoStorytellerPage() {
       }
 
       setAnalysis(data.analysis);
+      setCurrentTab("results"); // Automatically switch to results tab
       setActiveTab("story");
 
       // Refresh usage data immediately after successful analysis
       await refreshUsageAfterAnalysis();
+
+      // Refresh photo history to show the new analysis
+      await refreshPhotos();
     } catch (err) {
       const errorMessage = getToolErrorMessage({
         toolType: "photo",
@@ -222,6 +253,16 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
     URL.revokeObjectURL(url);
   };
 
+  const filteredPhotos = savedPhotos.filter((photo) => {
+    const q = searchQuery.toLowerCase();
+    const matches =
+      photo.filename.toLowerCase().includes(q) ||
+      photo.tags?.some((t) => t.toLowerCase().includes(q));
+    if (filterType === "analyzed") return matches && !!photo.analysis;
+    if (filterType === "pending") return matches && !photo.analysis;
+    return matches;
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
@@ -266,11 +307,21 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
           </Alert>
         )}
 
-        {!analysis ? (
-          <div className="grid gap-8 lg:grid-cols-3">
-            {/* Upload Section */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card variant="elevated" className="animate-slide-up">
+        <Tabs value={currentTab} onValueChange={setCurrentTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="upload">Upload & Analyze</TabsTrigger>
+            <TabsTrigger value="results" disabled={!analysis}>
+              Results
+            </TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+
+          {/* Upload Tab */}
+          <TabsContent value="upload" className="mt-6">
+            <div className="grid gap-8 lg:grid-cols-3">
+              {/* Upload Section */}
+              <div className="lg:col-span-2 space-y-6">
+                <Card variant="elevated" className="animate-slide-up">
                 <CardHeader>
                   <CardTitle className="text-xl">Upload Photo</CardTitle>
                   <CardDescription>
@@ -528,7 +579,11 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
               </Card>
             </div>
           </div>
-        ) : (
+          </TabsContent>
+
+          {/* Results Tab */}
+          <TabsContent value="results" className="mt-6">
+            {analysis && (
           /* Analysis Results */
           <div className="grid gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -1043,7 +1098,194 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
               </Card>
             </div>
           </div>
-        )}
+            )}
+          </TabsContent>
+
+          {/* History Tab */}
+          <TabsContent value="history" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle>Photo Analysis History</CardTitle>
+                    <CardDescription>
+                      View and manage previous photo analyses
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search photos…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 w-64"
+                      />
+                    </div>
+                    <Select value={filterType} onValueChange={setFilterType}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="analyzed">Analyzed</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {photosError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{photosError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                {photosLoading ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Loading photo history...</p>
+                  </div>
+                ) : filteredPhotos.length ? (
+                  <ScrollArea className="h-[600px]">
+                    <div className="space-y-4">
+                      {filteredPhotos.map((photo) => (
+                        <div
+                          key={photo.id}
+                          className="p-4 border rounded-lg hover:bg-muted/40 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setSelectedPhoto(photo);
+                            if (photo.analysis) {
+                              setAnalysis(photo.analysis);
+                              setCurrentTab("results");
+                            }
+                          }}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                                {photo.viewUrl && !photo.viewUrl.startsWith('placeholder://') ? (
+                                  <img
+                                    src={photo.viewUrl}
+                                    alt={photo.filename}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      // Replace with fallback icon if image fails to load
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                      const parent = target.parentElement;
+                                      if (parent && !parent.querySelector('.fallback-icon')) {
+                                        const fallbackDiv = document.createElement('div');
+                                        fallbackDiv.className = 'w-full h-full flex items-center justify-center fallback-icon';
+                                        fallbackDiv.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path></svg>';
+                                        parent.appendChild(fallbackDiv);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Camera className="w-6 h-6 text-gray-400" />
+                                    {photo.viewUrl?.startsWith('placeholder://') && (
+                                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full" title="Image not available" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium">{photo.filename}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Uploaded{" "}
+                                  {new Date(
+                                    photo.uploadedAt
+                                  ).toLocaleDateString()}
+                                </p>
+
+                                {photo.analysis && (
+                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      {photo.analysis.dateEstimate?.period || 'Unknown period'}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <BookOpen className="w-3 h-3" />
+                                      Story generated
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Users className="w-3 h-3" />
+                                      {photo.analysis.people?.length || 0} people
+                                    </span>
+                                  </div>
+                                )}
+
+                                {photo.tags?.length ? (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {photo.tags.map((t) => (
+                                      <Badge
+                                        key={t}
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {t}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {photo.analysis ? (
+                                <Badge>
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Analyzed
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  Pending
+                                </Badge>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const success = await deletePhoto(photo.id);
+                                  if (success) {
+                                    // toast("Photo removed", {
+                                    //   description: "Removed from history",
+                                    // });
+                                  } else {
+                                    // toast("Failed to remove photo", {
+                                    //   description: "Please try again",
+                                    // });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-12">
+                    <History className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                    <p className="text-muted-foreground">No photos found</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Upload and analyze photos to see them here
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
       <Footer />
     </div>

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { analyzePhoto } from "@/lib/claude";
+import { uploadFileBuffer, generateFilePath } from "@/lib/storage";
 import { AnalysisType, SubscriptionTier } from "@prisma/client";
 import { SUBSCRIPTION_LIMITS, type PhotoAnalysisResult } from "@/types";
 
@@ -70,6 +71,40 @@ export async function POST(req: NextRequest) {
 
     // Handle direct image upload (new flow)
     if (imageData) {
+      // Convert base64 to buffer for storage
+      const buffer = Buffer.from(imageData, 'base64');
+      const approximateSize = buffer.length;
+      
+      // Generate unique storage path
+      const storagePath = generateFilePath(userId, "photos", fileName || 'uploaded_photo.jpg');
+      console.log("📁 Generated photo storage path:", storagePath);
+
+      // Upload file to Supabase storage
+      console.log("☁️ Uploading photo to storage...");
+      const fileUrl = await uploadFileBuffer(storagePath, buffer, mimeType || 'image/jpeg', {
+        originalName: fileName || 'uploaded_photo.jpg',
+        userId: userId,
+        uploadType: 'photo-analysis'
+      });
+      console.log("✅ Photo uploaded successfully:", fileUrl);
+
+      // Create a photo record for history tracking
+      photo = await prisma.photo.create({
+        data: {
+          userId,
+          filename: fileName || 'uploaded_photo.jpg',
+          storagePath: storagePath,
+          mimeType: mimeType || 'image/jpeg',
+          size: approximateSize,
+          metadata: {
+            directUpload: true,
+            analysisTimestamp: new Date().toISOString(),
+            additionalContext: additionalContext || null,
+          },
+        },
+      });
+      console.log("💾 Photo record created:", photo.id);
+
       imageAnalysisData = {
         imageData,
         mimeType: mimeType || 'image/jpeg',
@@ -132,8 +167,9 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         type: AnalysisType.PHOTO,
+        photoId: photo?.id || null, // Link to photo record
         input: {
-          photoId,
+          photoId: photo?.id || photoId,
           description: imageAnalysisData.textDescription || imageAnalysisData.fileName || 'Image analysis',
           additionalContext: imageAnalysisData.additionalContext,
         },

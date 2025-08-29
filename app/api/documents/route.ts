@@ -53,8 +53,29 @@ export async function GET(req: NextRequest) {
       prisma.document.count({ where: whereClause }),
     ]);
 
+    // Generate signed URLs for viewing documents
+    const documentsWithUrls = await Promise.all(
+      documents.map(async (document) => {
+        try {
+          const viewUrl = await generateDownloadUrl(document.storagePath);
+          return { 
+            ...document, 
+            viewUrl,
+            analysis: document.analysis || null
+          };
+        } catch (error) {
+          console.warn(`Failed to generate URL for document ${document.id}:`, error);
+          return { 
+            ...document, 
+            viewUrl: null,
+            analysis: document.analysis || null
+          };
+        }
+      })
+    );
+
     return NextResponse.json({
-      documents,
+      documents: documentsWithUrls,
       pagination: {
         page,
         limit,

@@ -16,7 +16,6 @@ import { Navigation } from "@/components/ui/navigation";
 import {
   FileText,
   Dna,
-  TreePine,
   MessageCircle,
   Camera,
   ArrowRight,
@@ -25,11 +24,11 @@ import {
   CheckCircle,
   Sparkles,
   TrendingUp,
+  Languages,
 } from "lucide-react";
 import { SUBSCRIPTION_LIMITS } from "@/types";
 import { useUserStatus, useUsageData } from "@/hooks/use-user-status";
 import { Footer } from "@/components/footer";
-
 
 type ToolId =
   | "document-analyzer"
@@ -90,7 +89,7 @@ const TOOLS: Tool[] = [
     name: "Ancient Records Translator",
     description:
       "Professional OCR, translation, and genealogical fact extraction from historical documents with contextual explanations",
-    icon: TreePine,
+    icon: Languages,
     tone: "translations" as const,
     features: [
       "OCR transcription",
@@ -161,7 +160,6 @@ const TONE = {
   },
 } as const;
 
-
 export default function ToolsPage() {
   const { isAnonymous, isAuthenticated, tier } = useUserStatus();
   const { data: usageData } = useUsageData();
@@ -184,7 +182,7 @@ export default function ToolsPage() {
 
     const toolKeyMap = {
       "document-analyzer": "documents",
-      "dna-interpreter": "dna", 
+      "dna-interpreter": "dna",
       "ancient-records-translator": "translations",
       "research-copilot": "research",
       "photo-storyteller": "photos",
@@ -210,13 +208,12 @@ export default function ToolsPage() {
           <div className="text-center py-16">
             <h1 className="text-4xl font-bold mb-4">Authentication Required</h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Please log in to access professional genealogy research tools and saved projects.
+              Please log in to access professional genealogy research tools and
+              saved projects.
             </p>
             <div className="flex gap-4 justify-center">
               <Link href="/login">
-                <Button size="lg">
-                  Log In
-                </Button>
+                <Button size="lg">Log In</Button>
               </Link>
               <Link href="/register">
                 <Button size="lg" variant="outline">
@@ -253,10 +250,10 @@ export default function ToolsPage() {
             <h1 className="text-3xl font-bold">Your Buddy&apos;s Toolbox</h1>
           </div>
           <p className="text-muted-foreground">
-            Ready to explore? Your research buddy has powerful tools to help uncover your genealogical research findings!
+            Ready to explore? Your research buddy has powerful tools to help
+            uncover your genealogical research findings!
           </p>
         </div>
-
 
         {/* Tools Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -316,9 +313,11 @@ export default function ToolsPage() {
                       variant="outline"
                       className="text-foreground/70 min-w-max"
                     >
-                      {unlimited ? "Unlimited" : 
-                       typeof limit === 'number' && limit === 0 ? "Requires Upgrade" :
-                       `${limit} Monthly`}
+                      {unlimited
+                        ? "Unlimited"
+                        : typeof limit === "number" && limit === 0
+                        ? "Requires Upgrade"
+                        : `${limit} Monthly`}
                     </Badge>
                   </div>
 
@@ -351,7 +350,6 @@ export default function ToolsPage() {
                             : `${used} / ${limit}`}
                         </span>
                       </div>
-
 
                       {/* last used */}
                       {usage.lastUsed && usage.lastUsed !== "Never" && (
@@ -403,8 +401,8 @@ export default function ToolsPage() {
                   Unlock All Tools
                 </h3>
                 <p className="text-muted-foreground">
-                  Get unlimited access to every professional research tool with the
-                  Professional research plan.
+                  Get unlimited access to every professional research tool with
+                  the Professional research plan.
                 </p>
               </div>
               <Link href="/subscription">
