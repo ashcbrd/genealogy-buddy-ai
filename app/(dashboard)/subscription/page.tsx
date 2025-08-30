@@ -42,7 +42,7 @@ const PLANS = [
     name: "Free",
     tier: "FREE",
     price: 0,
-    description: "Perfect for getting started",
+    description: "Perfect for getting started with basic tools",
     icon: <Users className="w-6 h-6" />,
     color: "gray",
   },
@@ -50,7 +50,7 @@ const PLANS = [
     name: "Explorer",
     tier: "EXPLORER",
     price: 19,
-    description: "For hobby genealogists",
+    description: "Unlock translation & premium AI research",
     icon: <Zap className="w-6 h-6" />,
     color: "blue",
     popular: true,
@@ -59,7 +59,7 @@ const PLANS = [
     name: "Researcher",
     tier: "RESEARCHER",
     price: 39,
-    description: "For serious researchers",
+    description: "Advanced features for serious genealogists",
     icon: <Shield className="w-6 h-6" />,
     color: "purple",
   },
@@ -67,7 +67,7 @@ const PLANS = [
     name: "Professional",
     tier: "PROFESSIONAL",
     price: 79,
-    description: "For professionals & teams",
+    description: "Complete toolkit for professionals & teams",
     icon: <Crown className="w-6 h-6" />,
     color: "gold",
   },
@@ -102,7 +102,6 @@ export default function SubscriptionPage() {
         usage: {
           documents: 0,
           dna: 0,
-          translations: 0,
           research: 0,
           photos: 0,
         },
@@ -164,13 +163,12 @@ export default function SubscriptionPage() {
           <div className="text-center py-16">
             <h1 className="text-4xl font-bold mb-4">Authentication Required</h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Please log in to manage your subscription and view billing information.
+              Please log in to manage your subscription and view billing
+              information.
             </p>
             <div className="flex gap-4 justify-center">
               <Link href="/login">
-                <Button size="lg">
-                  Log In
-                </Button>
+                <Button size="lg">Log In</Button>
               </Link>
               <Link href="/register">
                 <Button size="lg" variant="outline">
@@ -200,10 +198,10 @@ export default function SubscriptionPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Subscription & Billing</h1>
           <p className="text-muted-foreground">
-            Manage your subscription and view usage statistics
+            Manage your subscription and unlock premium features like document
+            translation and enhanced AI research
           </p>
         </div>
-
 
         {/* Current Plan */}
         <Card className="mb-8">
@@ -318,7 +316,7 @@ export default function SubscriptionPage() {
               return (
                 <Card
                   key={plan.tier}
-                  className={`relative ${
+                  className={`relative flex flex-col ${
                     plan.popular ? "border-primary shadow-lg" : ""
                   } ${isCurrent ? "ring-2 ring-primary" : ""}`}
                 >
@@ -390,15 +388,32 @@ export default function SubscriptionPage() {
                         )}
                       </li>
                       <li className="flex items-center gap-2 text-sm">
-                        {limits.translations === -1 ? (
+                        {limits.translationEnabled ? (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>Unlimited translations</span>
+                            <span>Document Translation (15 languages)</span>
                           </>
                         ) : (
                           <>
+                            <X className="w-4 h-4 text-red-500" />
+                            <span className="text-muted-foreground">
+                              No translation access
+                            </span>
+                          </>
+                        )}
+                      </li>
+                      <li className="flex items-center gap-2 text-sm">
+                        {limits.translationEnabled ? (
+                          <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>{limits.translations} translations</span>
+                            <span>Historical Terms Explanations</span>
+                          </>
+                        ) : (
+                          <>
+                            <X className="w-4 h-4 text-red-500" />
+                            <span className="text-muted-foreground">
+                              Historical terms explanations
+                            </span>
                           </>
                         )}
                       </li>
@@ -406,15 +421,40 @@ export default function SubscriptionPage() {
                         {limits.research === -1 ? (
                           <>
                             <Check className="w-4 h-4 text-green-500" />
-                            <span>Unlimited research questions</span>
+                            <span>Unlimited AI research questions</span>
+                          </>
+                        ) : limits.research > 0 ? (
+                          <>
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span>
+                              {limits.research} AI research questions/mo
+                            </span>
                           </>
                         ) : (
                           <>
-                            <Check className="w-4 h-4 text-green-500" />
-                            <span>{limits.research} research questions</span>
+                            <X className="w-4 h-4 text-gray-400" />
+                            <span className="text-muted-foreground">
+                              AI research questions
+                            </span>
                           </>
                         )}
                       </li>
+                      {plan.tier !== "FREE" && (
+                        <>
+                          <li className="flex items-center gap-2 text-sm">
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span>Guided Research Narratives</span>
+                          </li>
+                          <li className="flex items-center gap-2 text-sm">
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span>Clickable Trusted Source Links</span>
+                          </li>
+                          <li className="flex items-center gap-2 text-sm">
+                            <Check className="w-4 h-4 text-green-500" />
+                            <span>Detailed Historical Context</span>
+                          </li>
+                        </>
+                      )}
                       <li className="flex items-center gap-2 text-sm">
                         {limits.photos === -1 ? (
                           <>
@@ -466,7 +506,7 @@ export default function SubscriptionPage() {
                     </ul>
                   </CardContent>
 
-                  <CardFooter>
+                  <CardFooter className="mt-auto">
                     {isCurrent ? (
                       <Button className="w-full" disabled variant="outline">
                         Current Plan

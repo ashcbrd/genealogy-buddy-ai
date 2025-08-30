@@ -22,7 +22,6 @@ export interface UsageData {
     dna: { used: number; limit: number; unlimited: boolean };
     photos: { used: number; limit: number; unlimited: boolean };
     research: { used: number; limit: number; unlimited: boolean };
-    translations: { used: number; limit: number; unlimited: boolean };
   };
   totalUsagePercentage: number;
   periodStart: string;
@@ -170,7 +169,7 @@ export function useIsFreeTier(): boolean {
  * Hook to check if user can use a specific tool based on their tier
  * Now includes security validation and better error handling
  */
-export function useToolAccess(tool: 'documents' | 'dna' | 'photos' | 'research' | 'translations') {
+export function useToolAccess(tool: 'documents' | 'dna' | 'photos' | 'research') {
   const { data: usageData } = useUsageData();
   const { isAuthenticated, tier } = useUserStatus();
 

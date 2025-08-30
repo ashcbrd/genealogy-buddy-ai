@@ -33,7 +33,6 @@ import { Footer } from "@/components/footer";
 type ToolId =
   | "document-analyzer"
   | "dna-interpreter"
-  | "ancient-records-translator"
   | "research-copilot"
   | "photo-storyteller";
 
@@ -53,13 +52,14 @@ interface Tool {
 const TOOLS: Tool[] = [
   {
     id: "document-analyzer",
-    name: "Document Analysis",
+    name: "Document Analysis & Translation",
     description:
-      "Professional document analysis for genealogical research using advanced AI-powered OCR and data extraction",
+      "Professional document analysis for genealogical research with OCR, translation (Explorer+), and data extraction",
     icon: FileText,
     tone: "docs" as const,
     features: [
       "OCR text extraction",
+      "Translation (Explorer+)",
       "Name and date recognition",
       "Relationship mapping",
       "Confidence scoring",
@@ -83,23 +83,6 @@ const TOOLS: Tool[] = [
       "Historical context",
     ],
     href: "/tools/dna-interpreter",
-  },
-  {
-    id: "ancient-records-translator",
-    name: "Ancient Records Translator",
-    description:
-      "Professional OCR, translation, and genealogical fact extraction from historical documents with contextual explanations",
-    icon: Languages,
-    tone: "translations" as const,
-    features: [
-      "OCR transcription",
-      "Multi-language translation",
-      "Genealogical fact extraction",
-      "Historical context tooltips",
-      "Structured JSON output",
-    ],
-    href: "/tools/ancient-records-translator",
-    popular: true,
   },
   {
     id: "research-copilot",
@@ -146,10 +129,6 @@ const TONE = {
     ring: "var(--lineage-dna)",
     wash: "color-mix(in oklab, var(--lineage-dna) 16%, transparent)",
   },
-  translations: {
-    ring: "var(--lineage-birth)",
-    wash: "color-mix(in oklab, var(--lineage-birth) 16%, transparent)",
-  },
   photos: {
     ring: "var(--chart-3)",
     wash: "color-mix(in oklab, var(--chart-3) 16%, transparent)",
@@ -183,7 +162,6 @@ export default function ToolsPage() {
     const toolKeyMap = {
       "document-analyzer": "documents",
       "dna-interpreter": "dna",
-      "ancient-records-translator": "translations",
       "research-copilot": "research",
       "photo-storyteller": "photos",
     } as const;

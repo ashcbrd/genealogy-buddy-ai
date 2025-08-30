@@ -12,38 +12,107 @@ declare global {
 }
 
 // Configuration options for Prisma Client
+const getDatabaseUrl = () => {
+  // Force reload environment variables to ensure we have the latest
+  if (typeof window === "undefined") {
+    try {
+      const dotenv = require('dotenv');
+      const path = require('path');
+      dotenv.config({ path: path.join(process.cwd(), '.env') });
+    } catch (error) {
+      // dotenv might not be available in production, that's okay
+    }
+  }
+  
+  // In development, prefer DIRECT_URL to bypass pooler issues
+  if (process.env.NODE_ENV === "development") {
+    const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
+    if (url && process.env.NODE_ENV === "development") {
+      console.log(`🔗 Using database URL: ${url.replace(/:[^:]*@/, ':***@')}`);
+    }
+    return url;
+  }
+  
+  // In production, use DATABASE_URL (which should be the pooler URL)  
+  return process.env.DATABASE_URL;
+};
+
 const prismaClientOptions: Prisma.PrismaClientOptions = {
   log:
     process.env.NODE_ENV === "development"
       ? ["query", "error", "warn"]
       : ["error"],
   errorFormat: process.env.NODE_ENV === "development" ? "pretty" : "minimal",
-  // Configure for better connection handling with Supabase
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: getDatabaseUrl(),
     },
   },
+  // Add connection pool and timeout settings for better reliability
+  ...(process.env.NODE_ENV === "development" && {
+    // Development-specific settings for better debugging
+    log: ["query", "error", "warn", "info"],
+  }),
 };
 
-// Create a single instance of PrismaClient
-export const prisma =
-  globalThis.prisma || new PrismaClient(prismaClientOptions);
+// Create a single instance of PrismaClient with proper connection management
+let prismaInstance: PrismaClient | null = null;
 
-// In development, save the client to the global object to prevent multiple instances
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prisma = prisma;
+function createPrismaClient(): PrismaClient {
+  const client = new PrismaClient(prismaClientOptions);
+  
+  // Add connection event handlers for better debugging
+  if (process.env.NODE_ENV === "development") {
+    console.log(`🔗 Creating new Prisma client with URL: ${getDatabaseUrl()?.replace(/:[^:]*@/, ':***@')}`);
+  }
+
+  return client;
 }
 
+export const prisma = (() => {
+  if (process.env.NODE_ENV === "production") {
+    // In production, create a fresh instance each time
+    return createPrismaClient();
+  }
+
+  // In development, use global singleton to prevent hot reload issues
+  if (!globalThis.prisma) {
+    globalThis.prisma = createPrismaClient();
+  }
+  
+  return globalThis.prisma;
+})();
+
 /**
- * Helper function to handle database connection in serverless environments
+ * Enhanced database connection function with health checks and retries
  */
-export async function connectDB() {
+export async function connectDB(): Promise<void> {
   try {
-    await prisma.$connect();
-    console.log("✅ Database connected successfully");
+    console.log("🔍 Attempting to connect to database...");
+    
+    // First try to connect
+    await withRetry(async () => {
+      await prisma.$connect();
+      return true;
+    }, 3, 2000);
+    
+    // Then perform a health check
+    const health = await checkDatabaseHealth();
+    
+    if (health.status === "healthy") {
+      console.log(`✅ Database connected successfully (latency: ${health.latency}ms)`);
+    } else {
+      throw new Error(`Database health check failed: ${health.error}`);
+    }
   } catch (error) {
     console.error("❌ Database connection failed:", error);
+    
+    // In development, don't exit process to allow for debugging
+    if (process.env.NODE_ENV === "development") {
+      console.warn("⚠️ Development mode: continuing without database connection");
+      return;
+    }
+    
     process.exit(1);
   }
 }
@@ -121,7 +190,7 @@ export async function getPaginationMeta(
 }
 
 /**
- * Retry helper for database operations
+ * Enhanced retry helper for database operations with connection error handling
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -134,7 +203,7 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (error: unknown) {
-      const err = error as { code?: string };
+      const err = error as { code?: string; message?: string };
       lastError = err as Error;
 
       // Don't retry on certain errors
@@ -147,11 +216,23 @@ export async function withRetry<T>(
         throw error;
       }
 
-      // Wait before retrying
+      // Retry on connection errors (P1001)
+      const isConnectionError = 
+        err.code === "P1001" || 
+        err.message?.includes("Can't reach database server") ||
+        err.message?.includes("connection") ||
+        err.message?.includes("timeout");
+
+      if (!isConnectionError && i === 0) {
+        // If it's not a connection error, don't retry
+        throw error;
+      }
+
+      // Wait before retrying with exponential backoff
       if (i < maxRetries - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, delay * Math.pow(2, i))
-        );
+        const retryDelay = delay * Math.pow(2, i);
+        console.log(`Database connection failed, retrying in ${retryDelay}ms... (attempt ${i + 2}/${maxRetries})`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
     }
   }
@@ -159,62 +240,132 @@ export async function withRetry<T>(
   throw lastError;
 }
 
+// Circuit breaker state for database health
+let circuitBreakerState: "closed" | "open" | "half-open" = "closed";
+let lastFailureTime = 0;
+let failureCount = 0;
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 30000; // 30 seconds
+
 /**
- * Database health check
+ * Enhanced database health check with circuit breaker pattern
  */
 export async function checkDatabaseHealth(): Promise<{
   status: "healthy" | "unhealthy";
   latency: number;
   error?: string;
+  circuitState?: string;
 }> {
   const startTime = Date.now();
 
+  // Check circuit breaker state
+  if (circuitBreakerState === "open") {
+    const timeSinceFailure = Date.now() - lastFailureTime;
+    if (timeSinceFailure < CIRCUIT_BREAKER_TIMEOUT) {
+      return {
+        status: "unhealthy",
+        latency: 0,
+        error: "Circuit breaker is open",
+        circuitState: circuitBreakerState,
+      };
+    } else {
+      circuitBreakerState = "half-open";
+    }
+  }
+
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    // Use withRetry for the health check
+    await withRetry(async () => {
+      await prisma.$queryRaw`SELECT 1`;
+      return true;
+    }, 2, 1000);
+
     const latency = Date.now() - startTime;
+
+    // Reset circuit breaker on success
+    if (circuitBreakerState === "half-open") {
+      circuitBreakerState = "closed";
+      failureCount = 0;
+    }
 
     return {
       status: "healthy",
       latency,
+      circuitState: circuitBreakerState,
     };
   } catch (error: unknown) {
     const err = error as { message: string };
+    const latency = Date.now() - startTime;
+
+    // Update circuit breaker state
+    failureCount++;
+    lastFailureTime = Date.now();
+
+    if (failureCount >= CIRCUIT_BREAKER_THRESHOLD) {
+      circuitBreakerState = "open";
+    }
+
     return {
       status: "unhealthy",
-      latency: Date.now() - startTime,
+      latency,
       error: err.message,
+      circuitState: circuitBreakerState,
     };
   }
 }
 
 /**
- * Database statistics helper
+ * Database operation wrapper with automatic retry and error handling
+ */
+export async function withDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  operationName = "database operation"
+): Promise<T> {
+  try {
+    return await withRetry(operation, 3, 1500);
+  } catch (error) {
+    const err = error as { code?: string; message?: string };
+    console.error(`❌ ${operationName} failed:`, {
+      code: err.code,
+      message: err.message,
+    });
+    
+    // Re-throw with enhanced error context
+    if (PrismaErrors.isConnectionError(error)) {
+      throw new Error(`Database connection failed during ${operationName}. Please check your connection and try again.`);
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Database statistics helper with enhanced error handling
  */
 export async function getDatabaseStats() {
-  const [
-    userCount,
-    documentCount,
-    analysisCount,
-    treeCount,
-    photoCount,
-    subscriptionCount,
-  ] = await Promise.all([
-    prisma.user.count(),
-    prisma.document.count(),
-    prisma.analysis.count(),
-    prisma.familyTree.count(),
-    prisma.photo.count(),
-    prisma.subscription.count({ where: { tier: { not: "FREE" } } }),
-  ]);
+  return await withDatabaseOperation(async () => {
+    const [
+      userCount,
+      documentCount,
+      analysisCount,
+      photoCount,
+      subscriptionCount,
+    ] = await Promise.all([
+      prisma.user.count().catch(() => 0),
+      prisma.document.count().catch(() => 0),
+      prisma.analysis.count().catch(() => 0),
+      prisma.photo.count().catch(() => 0),
+      prisma.subscription.count({ where: { tier: { not: "FREE" } } }).catch(() => 0),
+    ]);
 
-  return {
-    users: userCount,
-    documents: documentCount,
-    analyses: analysisCount,
-    familyTrees: treeCount,
-    photos: photoCount,
-    paidSubscriptions: subscriptionCount,
-  };
+    return {
+      users: userCount,
+      documents: documentCount,
+      analyses: analysisCount,
+      photos: photoCount,
+      paidSubscriptions: subscriptionCount,
+    };
+  }, "database statistics retrieval");
 }
 
 /**
@@ -459,6 +610,7 @@ export const db = {
   disconnect: disconnectDB,
   withTransaction,
   withRetry,
+  withDatabaseOperation,
   checkHealth: checkDatabaseHealth,
   getStats: getDatabaseStats,
   batchCreate,

@@ -220,13 +220,17 @@ export default function DNAInterpreterPage() {
                   >
                     <input {...getInputProps()} />
                     <div className="flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                        {file ? (
-                          <FileText className="w-8 h-8 text-green-600" />
-                        ) : (
+                      {file ? (
+                        <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                          <div className="w-full h-full flex items-center justify-center bg-green-50 border border-green-200">
+                            <FileText className="w-12 h-12 text-green-600" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
                           <Upload className="w-8 h-8 text-primary" />
-                        )}
-                      </div>
+                        </div>
+                      )}
                       {file ? (
                         <div>
                           <p className="font-medium text-foreground">
@@ -241,7 +245,7 @@ export default function DNAInterpreterPage() {
                           <p className="font-medium text-foreground mb-1">
                             {isDragActive
                               ? "Drop your DNA file here"
-                              : "Drag & drop your DNA file here"}
+                              : "Drag & drop a DNA file here"}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             or click to browse files
@@ -252,7 +256,7 @@ export default function DNAInterpreterPage() {
                   </div>
 
                   {fileRejections.length > 0 && (
-                    <Alert variant="destructive" className="mt-4">
+                    <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
                         <div className="space-y-2">
@@ -261,7 +265,9 @@ export default function DNAInterpreterPage() {
                             {getFileRejectionMessage('dna', fileRejections[0].errors[0])}
                           </p>
                           <p className="text-sm opacity-90">
-                            Need help? Check our support guide for DNA file preparation tips.
+                            📸 Best results: Use clear photos with visible
+                            faces and details, good lighting, and minimal
+                            blur.
                           </p>
                         </div>
                       </AlertDescription>
@@ -269,7 +275,7 @@ export default function DNAInterpreterPage() {
                   )}
 
                   {isAnalyzing && (
-                    <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground">
+                    <div className="flex items-center justify-center text-sm text-muted-foreground">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Analyzing DNA data…
                     </div>

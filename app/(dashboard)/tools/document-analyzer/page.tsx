@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useCallback } from "react";
@@ -44,9 +45,10 @@ import {
   History,
   Share2,
   Clock,
-  FileWarning,
+  Image,
   ArrowLeft,
   Crown,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -58,8 +60,12 @@ import {
   getToolErrorMessage,
   getFileRejectionMessage,
 } from "@/lib/error-handler";
-import { useToolAccess } from "@/hooks/use-user-status";
-import { useDocumentHistory, type SavedDocument } from "@/hooks/use-document-history";
+import { useToolAccess, useUserStatus } from "@/hooks/use-user-status";
+import {
+  useDocumentHistory,
+  type SavedDocument,
+} from "@/hooks/use-document-history";
+import { Switch } from "@/components/ui/switch";
 
 import type { DocumentAnalysisResult } from "@/types";
 
@@ -78,6 +84,11 @@ export default function DocumentAnalyzerPage() {
   const [filterType, setFilterType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Translation states
+  const [enableTranslation, setEnableTranslation] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState("English");
+  const [sourceLanguage, setSourceLanguage] = useState("auto-detect");
+
   // Use the document history hook
   const {
     documents: savedDocuments,
@@ -89,9 +100,15 @@ export default function DocumentAnalyzerPage() {
 
   const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
   const { usage } = useToolAccess("documents");
+  const { tier } = useUserStatus();
   const isAtUsageLimit = usage && !usage.unlimited && usage.used >= usage.limit;
   const hasNoAccess = usage && usage.limit === 0;
   const shouldUpgrade = isAtUsageLimit || hasNoAccess;
+
+  // Check if translation is available for current subscription tier
+  const hasTranslationAccess =
+    tier && ["EXPLORER", "RESEARCHER", "PROFESSIONAL", "ADMIN"].includes(tier);
+  const translationRequiresUpgrade = !hasTranslationAccess;
 
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
@@ -143,6 +160,16 @@ export default function DocumentAnalyzerPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+
+      // Add translation options if enabled
+      if (enableTranslation) {
+        formData.append("enableTranslation", "true");
+        formData.append("targetLanguage", targetLanguage);
+        if (sourceLanguage !== "auto-detect") {
+          formData.append("sourceLanguage", sourceLanguage);
+        }
+      }
+
       const res = await fetch("/api/tools/document/analyze", {
         method: "POST",
         body: formData,
@@ -286,188 +313,354 @@ export default function DocumentAnalyzerPage() {
 
           {/* Upload */}
           <TabsContent value="upload" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upload Document</CardTitle>
-                  <CardDescription>
-                    Drop a document to analyze and extract genealogy data.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div
-                    {...getRootProps({
-                      onClick: (e) => {
-                        e.preventDefault();
-                        open();
-                      },
-                    })}
-                    className={[
-                      "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift",
-                      isDragActive
-                        ? "border-primary bg-primary/5"
-                        : file
-                        ? "border-green-500 bg-green-50/50"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50",
-                    ].join(" ")}
-                    aria-label="Document file dropzone"
-                  >
-                    <input {...getInputProps()} />
-                    <div
-                      className="mx-auto mb-4 grid place-items-center h-12 w-12 rounded-full"
-                      style={{
-                        background:
-                          "color-mix(in oklab, var(--chart-1) 14%, transparent)",
-                      }}
-                    >
-                      <Upload
-                        className="w-6 h-6"
-                        style={{ color: "var(--chart-1)" }}
-                      />
-                    </div>
-                    {isDragActive ? (
-                      <p>Drop the document here…</p>
-                    ) : (
-                      <>
-                        <p className="mb-2">
-                          Drag & drop a document, or click to select
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Formats: PNG/JPG/GIF/TIFF/WEBP or PDF • Max 10MB
-                        </p>
-                      </>
-                    )}
-                  </div>
-
-                  {file && (
-                    <div className="mt-4 rounded-lg border bg-card p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Size: {formatMB(file.size)}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setFile(null);
-                            setPreview(null);
-                            setAnalysis(null);
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {fileRejections.length > 0 && (
-                    <Alert variant="destructive" className="mt-4">
-                      <FileWarning className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="space-y-2">
-                          <p className="font-medium">Document Upload Error</p>
-                          <p>
-                            {getFileRejectionMessage(
-                              "document",
-                              fileRejections[0].errors[0]
-                            )}
-                          </p>
-                          <p className="text-sm opacity-90">
-                            💡 Tip: For best results, use high-resolution scans
-                            (300+ DPI) with clear text and good contrast.
-                          </p>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="pt-4 border-t">
-                    <Button
-                      onClick={handleAnalyzeAction}
-                      disabled={!file || isAnalyzing}
-                      className="w-full hover-lift"
-                      size="lg"
-                    >
-                      {isAnalyzing ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : shouldUpgrade ? (
-                        <Crown className="mr-2 h-5 w-5" />
-                      ) : (
-                        <Sparkles className="mr-2 h-5 w-5" />
-                      )}
-                      {isAnalyzing
-                        ? "Analyzing Document..."
-                        : shouldUpgrade
-                        ? "Upgrade to Analyze Document"
-                        : "Analyze Document"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Tips */}
-              <div className="space-y-6">
-                <Card>
+            <div className="grid gap-8 lg:grid-cols-3">
+              {/* Upload Section */}
+              <div className="lg:col-span-2 space-y-6">
+                <Card variant="elevated" className="animate-slide-up">
                   <CardHeader>
-                    <CardTitle>Tips for Best Results</CardTitle>
+                    <CardTitle className="text-xl">Upload Document</CardTitle>
+                    <CardDescription>
+                      Upload a historical document to extract genealogy data and
+                      family information
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {[
-                      [
-                        "Use high-quality scans",
-                        "300 DPI or higher improves OCR accuracy",
-                      ],
-                      [
-                        "Ensure good contrast",
-                        "Dark text on light background works best",
-                      ],
-                      ["Straight alignment", "Avoid skewed or rotated pages"],
-                      [
-                        "Complete pages",
-                        "Include all relevant margins and notes",
-                      ],
-                    ].map(([h, d], i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
+                  <CardContent className="space-y-6">
+                    <div
+                      {...getRootProps({
+                        onClick: (e) => {
+                          e.preventDefault();
+                          open();
+                        },
+                      })}
+                      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift ${
+                        isDragActive
+                          ? "border-primary bg-primary/5"
+                          : preview
+                          ? "border-green-500 bg-green-50/50"
+                          : "border-border hover:border-primary/50 hover:bg-muted/50"
+                      }`}
+                      aria-label="Document file dropzone"
+                    >
+                      <input {...getInputProps()} />
+                      <div className="flex flex-col items-center gap-4">
+                        {preview ? (
+                          <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                            <img
+                              src={preview}
+                              alt="Document preview"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                            <Upload className="w-8 h-8 text-primary" />
+                          </div>
+                        )}
+                        {preview ? (
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {file?.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {file && (file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-medium text-foreground mb-1">
+                              {isDragActive
+                                ? "Drop your document here"
+                                : "Drag & drop a document here"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              or click to browse files
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {fileRejections.length > 0 && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="space-y-2">
+                            <p className="font-medium">Document Upload Error</p>
+                            <p>
+                              {getFileRejectionMessage(
+                                "document",
+                                fileRejections[0].errors[0]
+                              )}
+                            </p>
+                            <p className="text-sm opacity-90">
+                              📸 Best results: Use clear photos with visible
+                              faces and details, good lighting, and minimal
+                              blur.
+                            </p>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {/* Translation Settings - Premium Feature */}
+                    <div className="pt-4 border-t space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Label
+                              htmlFor="enable-translation"
+                              className="font-medium"
+                            >
+                              Document Translation
+                            </Label>
+                            {translationRequiresUpgrade && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-300"
+                              >
+                                <Crown className="w-3 h-3 mr-1" />
+                                Explorer+
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {translationRequiresUpgrade
+                              ? "Upgrade to Explorer plan to translate documents before analysis"
+                              : "Translate document to English or any selected language before extracting genealogical data"}
+                          </p>
+                        </div>
+                        <Switch
+                          id="enable-translation"
+                          checked={enableTranslation}
+                          onCheckedChange={(checked) => {
+                            if (translationRequiresUpgrade && checked) {
+                              // Redirect to subscription page
+                              window.location.href = "/subscription";
+                              return;
+                            }
+                            setEnableTranslation(checked);
+                          }}
+                          disabled={translationRequiresUpgrade}
+                        />
+                      </div>
+
+                      {enableTranslation && hasTranslationAccess && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label
+                              htmlFor="source-language"
+                              className="text-xs font-medium"
+                            >
+                              Source Language
+                            </Label>
+                            <Select
+                              value={sourceLanguage}
+                              onValueChange={setSourceLanguage}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto-detect">
+                                  Auto-detect
+                                </SelectItem>
+                                <SelectItem value="Spanish">Spanish</SelectItem>
+                                <SelectItem value="French">French</SelectItem>
+                                <SelectItem value="German">German</SelectItem>
+                                <SelectItem value="Italian">Italian</SelectItem>
+                                <SelectItem value="Portuguese">
+                                  Portuguese
+                                </SelectItem>
+                                <SelectItem value="Latin">Latin</SelectItem>
+                                <SelectItem value="Polish">Polish</SelectItem>
+                                <SelectItem value="Russian">Russian</SelectItem>
+                                <SelectItem value="Czech">Czech</SelectItem>
+                                <SelectItem value="Hungarian">
+                                  Hungarian
+                                </SelectItem>
+                                <SelectItem value="Dutch">Dutch</SelectItem>
+                                <SelectItem value="Swedish">Swedish</SelectItem>
+                                <SelectItem value="Norwegian">
+                                  Norwegian
+                                </SelectItem>
+                                <SelectItem value="Danish">Danish</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label
+                              htmlFor="target-language"
+                              className="text-xs font-medium"
+                            >
+                              Target Language
+                            </Label>
+                            <Select
+                              value={targetLanguage}
+                              onValueChange={setTargetLanguage}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="English">English</SelectItem>
+                                <SelectItem value="Spanish">Spanish</SelectItem>
+                                <SelectItem value="French">French</SelectItem>
+                                <SelectItem value="German">German</SelectItem>
+                                <SelectItem value="Italian">Italian</SelectItem>
+                                <SelectItem value="Portuguese">
+                                  Portuguese
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-4 border-t">
+                      <Button
+                        onClick={handleAnalyzeAction}
+                        disabled={!file || isAnalyzing}
+                        className="w-full hover-lift"
+                        size="lg"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : shouldUpgrade ? (
+                          <Crown className="mr-2 h-5 w-5" />
+                        ) : (
+                          <Sparkles className="mr-2 h-5 w-5" />
+                        )}
+                        {isAnalyzing
+                          ? enableTranslation
+                            ? "Translating & Analyzing..."
+                            : "Analyzing Document..."
+                          : shouldUpgrade
+                          ? "Upgrade to Analyze Document"
+                          : enableTranslation
+                          ? "Translate & Analyze Document"
+                          : "Analyze Document"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Info Section */}
+              <div className="space-y-6">
+                <Card variant="elevated" className="animate-slide-up">
+                  <CardHeader>
+                    <CardTitle className="text-xl">Supported Formats</CardTitle>
+                    <CardDescription>
+                      We support images and PDF documents
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                        </div>
                         <div>
-                          <p className="font-medium">{h}</p>
-                          <p className="text-sm text-muted-foreground">{d}</p>
+                          <p className="font-medium text-sm">PDF Documents</p>
+                          <p className="text-xs text-muted-foreground">
+                            Multi-page documents
+                          </p>
                         </div>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+                          <Image className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Images</p>
+                          <p className="text-xs text-muted-foreground">
+                            PNG, JPEG, TIFF, WebP
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card variant="elevated" className="animate-slide-up">
                   <CardHeader>
-                    <CardTitle>What We Extract</CardTitle>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      What We Extract
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Feature
-                      icon={<User className="w-4 h-4" />}
-                      text="Names of people and places"
-                    />
-                    <Feature
-                      icon={<Calendar className="w-4 h-4" />}
-                      text="Dates (births, deaths, marriages)"
-                    />
-                    <Feature
-                      icon={<MapPin className="w-4 h-4" />}
-                      text="Locations and addresses"
-                    />
-                    <Feature
-                      icon={<Users className="w-4 h-4" />}
-                      text="Genealogical relationships"
-                    />
-                    <Feature
-                      icon={<FileText className="w-4 h-4" />}
-                      text="Document type and context"
-                    />
+                  <CardContent className="space-y-1 text-sm">
+                    <div className="flex items-start gap-2">
+                      <User className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Names & People</p>
+                        <p className="text-muted-foreground text-xs">
+                          Full names, relationships, and family connections
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Calendar className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Dates & Events</p>
+                        <p className="text-muted-foreground text-xs">
+                          Births, deaths, marriages, and important events
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Locations</p>
+                        <p className="text-muted-foreground text-xs">
+                          Addresses, cities, countries, and place names
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Users className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Relationships</p>
+                        <p className="text-muted-foreground text-xs">
+                          Family connections and genealogical links
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card variant="elevated" className="animate-slide-up">
+                  <CardHeader>
+                    <CardTitle className="text-xl">
+                      Tips for Best Results
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Use high-quality scans (300 DPI or higher)
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Ensure good contrast between text and background
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Keep documents straight and avoid rotation
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Include all relevant margins and handwritten notes
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -475,11 +668,12 @@ export default function DocumentAnalyzerPage() {
           </TabsContent>
 
           {/* Results */}
+          {/* Results */}
           <TabsContent value="results" className="mt-6">
             {analysis && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Analysis Results */}
-                <div className="lg:col-span-3 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* LEFT: Analysis Content (2 cols) */}
+                <div className="lg:col-span-2 space-y-6">
                   <Card>
                     <CardHeader>
                       <div className="flex items-center justify-between">
@@ -511,8 +705,7 @@ export default function DocumentAnalyzerPage() {
                               }
                             }}
                           >
-                            <Share2 className="h-4 w-4 mr-1" />
-                            Share
+                            <Share2 className="h-4 w-4 mr-1" /> Share
                           </Button>
                           <Button
                             size="sm"
@@ -529,8 +722,7 @@ export default function DocumentAnalyzerPage() {
                               a.click();
                             }}
                           >
-                            <Download className="h-4 w-4 mr-1" />
-                            Export
+                            <Download className="h-4 w-4 mr-1" /> Export
                           </Button>
                         </div>
                       </div>
@@ -545,10 +737,116 @@ export default function DocumentAnalyzerPage() {
                     </Alert>
                   )}
 
+                  {/* Translation Results - Premium Feature */}
+                  {analysis.translation && (
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2">
+                            <Crown className="h-5 w-5 text-purple-600" />
+                            Translation Results
+                          </CardTitle>
+                          <Badge
+                            variant="outline"
+                            className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-300"
+                          >
+                            Premium Feature
+                          </Badge>
+                        </div>
+                        <CardDescription>
+                          Document translated from{" "}
+                          {analysis.translation.sourceLanguage} to{" "}
+                          {analysis.translation.targetLanguage}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <Tabs defaultValue="translation" className="w-full">
+                          <TabsList className="w-full justify-start">
+                            <TabsTrigger value="translation">
+                              Translation
+                            </TabsTrigger>
+                            <TabsTrigger value="contextual">
+                              Historical Terms
+                            </TabsTrigger>
+                            <TabsTrigger value="original">
+                              Original Text
+                            </TabsTrigger>
+                          </TabsList>
+
+                          <TabsContent value="translation" className="mt-4">
+                            <div className="bg-muted/30 p-4 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <Label className="text-sm font-medium">
+                                  Translated Text
+                                </Label>
+                                <Badge variant="outline">
+                                  {Math.round(
+                                    analysis.translation.confidence * 100
+                                  )}
+                                  % confidence
+                                </Badge>
+                              </div>
+                              <p className="text-sm whitespace-pre-wrap">
+                                {analysis.translation.translatedText}
+                              </p>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="contextual" className="mt-4">
+                            <div className="space-y-3">
+                              {analysis.translation.contextualTerms.map(
+                                (term, i) => (
+                                  <div
+                                    key={i}
+                                    className="border rounded-lg p-3"
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-medium">
+                                        {term.term}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {term.category}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      {term.explanation}
+                                    </p>
+                                  </div>
+                                )
+                              )}
+                              {analysis.translation.contextualTerms.length ===
+                                0 && (
+                                <p className="text-center text-muted-foreground py-4">
+                                  No historical terms requiring explanation were
+                                  found.
+                                </p>
+                              )}
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="original" className="mt-4">
+                            <div className="bg-muted/30 p-4 rounded-lg">
+                              <Label className="text-sm font-medium mb-2 block">
+                                Original Text
+                              </Label>
+                              <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                                {analysis.translation.originalText}
+                              </p>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Inner tabs for analysis sections (kept as-is) */}
                   <Card>
                     <CardContent className="p-0">
                       <Tabs defaultValue="people" className="w-full">
-                        <TabsList className="w-full justify-start rounded-none border-b">
+                        <TabsList className="w-full justify-start rounded-b-none border-b">
                           <TabsTrigger value="people">
                             People (
                             {
@@ -571,6 +869,7 @@ export default function DocumentAnalyzerPage() {
                           </TabsTrigger>
                         </TabsList>
 
+                        {/* People */}
                         <div className="p-6">
                           <TabsContent value="people" className="mt-0">
                             <div className="grid gap-3">
@@ -606,6 +905,7 @@ export default function DocumentAnalyzerPage() {
                             </div>
                           </TabsContent>
 
+                          {/* Dates */}
                           <TabsContent value="dates" className="mt-0">
                             <div className="grid gap-3">
                               {analysis.dates.map((date, i) => (
@@ -619,7 +919,7 @@ export default function DocumentAnalyzerPage() {
                                     <div>
                                       <p className="font-medium">{date.text}</p>
                                       <p className="text-sm opacity-75">
-                                        Type: {date.type}
+                                        Type: {date.type}{" "}
                                         {date.normalizedDate
                                           ? ` • ${date.normalizedDate}`
                                           : ""}
@@ -642,6 +942,7 @@ export default function DocumentAnalyzerPage() {
                             </div>
                           </TabsContent>
 
+                          {/* Places */}
                           <TabsContent value="places" className="mt-0">
                             <div className="grid gap-3">
                               {analysis.places.map((place, i) => (
@@ -679,6 +980,7 @@ export default function DocumentAnalyzerPage() {
                             </div>
                           </TabsContent>
 
+                          {/* Relationships */}
                           <TabsContent value="relationships" className="mt-0">
                             <div className="grid gap-3">
                               {analysis.relationships.map((rel, i) => (
@@ -716,6 +1018,7 @@ export default function DocumentAnalyzerPage() {
                             </div>
                           </TabsContent>
 
+                          {/* Events */}
                           <TabsContent value="events" className="mt-0">
                             <div className="space-y-4">
                               {analysis.events?.map((ev, i) => (
@@ -754,19 +1057,19 @@ export default function DocumentAnalyzerPage() {
                                     <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                                       {ev.date && (
                                         <span className="flex items-center gap-1">
-                                          <Calendar className="w-3 h-3" />
+                                          <Calendar className="w-3 h-3" />{" "}
                                           {ev.date}
                                         </span>
                                       )}
                                       {ev.place && (
                                         <span className="flex items-center gap-1">
-                                          <MapPin className="w-3 h-3" />
+                                          <MapPin className="w-3 h-3" />{" "}
                                           {ev.place}
                                         </span>
                                       )}
                                       {ev.people?.length ? (
                                         <span className="flex items-center gap-1">
-                                          <Users className="w-3 h-3" />
+                                          <Users className="w-3 h-3" />{" "}
                                           {ev.people.join(", ")}
                                         </span>
                                       ) : null}
@@ -861,31 +1164,35 @@ export default function DocumentAnalyzerPage() {
                         disabled
                         title="Notes and tags functionality coming soon"
                       >
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Notes (Coming Soon)
+                        <Save className="mr-2 h-4 w-4" /> Save Notes (Coming
+                        Soon)
                       </Button>
                     </CardContent>
                   </Card>
                 </div>
-                {/* Document Preview Sidebar */}
+
+                {/* RIGHT: Original Document Sidebar (1 col) */}
                 <div className="lg:col-span-1">
-                  <Card>
+                  <Card className="sticky top-4">
                     <CardHeader>
-                      <CardTitle className="text-lg">
+                      <CardTitle className="text-base">
                         Original Document
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       {(preview && file) ||
-                      (selectedDocument && selectedDocument.viewUrl && !selectedDocument.viewUrl.startsWith('placeholder://')) ? (
+                      (selectedDocument &&
+                        selectedDocument.viewUrl &&
+                        !selectedDocument.viewUrl.startsWith(
+                          "placeholder://"
+                        )) ? (
                         <div className="space-y-4">
                           <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden border">
                             <img
-                              src={selectedDocument?.viewUrl || preview || ''}
+                              src={selectedDocument?.viewUrl || preview || ""}
                               alt="Document preview"
                               className="w-full h-full object-contain bg-gray-50"
                               onError={(e) => {
-                                // Fall back to generic document icon if image fails to load
                                 (e.target as HTMLImageElement).style.display =
                                   "none";
                                 const parent = (e.target as HTMLImageElement)
@@ -903,19 +1210,9 @@ export default function DocumentAnalyzerPage() {
                                 Name:
                               </span>
                               <span className="font-medium truncate ml-2">
-                                {(
-                                  selectedDocument?.filename ||
+                                {selectedDocument?.filename ||
                                   file?.name ||
-                                  ""
-                                ).length > 20
-                                  ? `${(
-                                      selectedDocument?.filename ||
-                                      file?.name ||
-                                      ""
-                                    ).substring(0, 20)}...`
-                                  : selectedDocument?.filename ||
-                                    file?.name ||
-                                    ""}
+                                  "Document"}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -936,6 +1233,14 @@ export default function DocumentAnalyzerPage() {
                                   ?.toUpperCase() || "Document"}
                               </span>
                             </div>
+                            {selectedDocument?.viewUrl?.startsWith(
+                              "placeholder://"
+                            ) && (
+                              <div className="flex items-center gap-2 text-xs text-amber-600">
+                                <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                                Document preview unavailable
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -1026,7 +1331,8 @@ export default function DocumentAnalyzerPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3">
                               <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                {doc.viewUrl && !doc.viewUrl.startsWith('placeholder://') ? (
+                                {doc.viewUrl &&
+                                !doc.viewUrl.startsWith("placeholder://") ? (
                                   // Show document thumbnail/preview if it's an image
                                   <img
                                     src={doc.viewUrl}
@@ -1034,13 +1340,20 @@ export default function DocumentAnalyzerPage() {
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                       // Fall back to file icon if image fails to load
-                                      const target = e.target as HTMLImageElement;
+                                      const target =
+                                        e.target as HTMLImageElement;
                                       target.style.display = "none";
                                       const parent = target.parentElement;
-                                      if (parent && !parent.querySelector('.fallback-icon')) {
-                                        const fallbackDiv = document.createElement('div');
-                                        fallbackDiv.className = 'w-full h-full flex items-center justify-center fallback-icon';
-                                        fallbackDiv.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>';
+                                      if (
+                                        parent &&
+                                        !parent.querySelector(".fallback-icon")
+                                      ) {
+                                        const fallbackDiv =
+                                          document.createElement("div");
+                                        fallbackDiv.className =
+                                          "w-full h-full flex items-center justify-center fallback-icon";
+                                        fallbackDiv.innerHTML =
+                                          '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>';
                                         parent.appendChild(fallbackDiv);
                                       }
                                     }}
@@ -1048,8 +1361,13 @@ export default function DocumentAnalyzerPage() {
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center">
                                     <FileText className="w-6 h-6 text-gray-400" />
-                                    {doc.viewUrl?.startsWith('placeholder://') && (
-                                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full" title="Document not available" />
+                                    {doc.viewUrl?.startsWith(
+                                      "placeholder://"
+                                    ) && (
+                                      <div
+                                        className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full"
+                                        title="Document not available"
+                                      />
                                     )}
                                   </div>
                                 )}
@@ -1068,7 +1386,7 @@ export default function DocumentAnalyzerPage() {
                                     <span className="flex items-center gap-1">
                                       <User className="w-3 h-3" />
                                       {
-                                        doc.analysis.names.filter(
+                                        doc.analysis.names?.filter(
                                           (n) => n.type === "person"
                                         ).length
                                       }{" "}
@@ -1076,11 +1394,11 @@ export default function DocumentAnalyzerPage() {
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <Calendar className="w-3 h-3" />
-                                      {doc.analysis.dates.length} dates
+                                      {doc.analysis.dates?.length} dates
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <MapPin className="w-3 h-3" />
-                                      {doc.analysis.places.length} places
+                                      {doc.analysis.places?.length} places
                                     </span>
                                   </div>
                                 )}

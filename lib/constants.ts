@@ -196,7 +196,7 @@ export const SUBSCRIPTION_FEATURES = {
 } as const;
 
 // Analysis types and configuration
-export const ANALYSIS_TYPES = ["DOCUMENT", "DNA", "FAMILY_TREE", "PHOTO", "RESEARCH"] as const;
+export const ANALYSIS_TYPES = ["DOCUMENT", "DNA", "PHOTO", "RESEARCH"] as const;
 
 export const ANALYSIS_CONFIG = {
   maxRetries: 3,

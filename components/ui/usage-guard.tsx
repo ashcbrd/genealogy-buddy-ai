@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface UsageGuardProps {
-  tool: 'documents' | 'dna' | 'photos' | 'research' | 'translations';
+  tool: 'documents' | 'dna' | 'photos' | 'research';
   children: ReactNode;
   fallback?: ReactNode;
 }
@@ -80,7 +80,6 @@ export function UsageGuard({ tool, children, fallback }: UsageGuardProps) {
     dna: 'DNA Analysis', 
     photos: 'Photo Analysis',
     research: 'Research Chat',
-    translations: 'Ancient Records Translator',
   };
 
   const isUpgradeNeeded = usage?.limit === 0 || upgradeRequired;
@@ -172,7 +171,7 @@ export function UsageGuard({ tool, children, fallback }: UsageGuardProps) {
 }
 
 interface UsageWarningProps {
-  tool: 'documents' | 'dna' | 'photos' | 'research' | 'translations';
+  tool: 'documents' | 'dna' | 'photos' | 'research';
   threshold?: number; // Warning threshold (default 0.8 = 80%)
 }
 

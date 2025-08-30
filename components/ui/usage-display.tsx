@@ -211,13 +211,6 @@ export function UsageDisplay() {
             icon={<div className="h-4 w-4 rounded bg-orange-500" />}
           />
 
-          <ToolUsageBar
-            label="Translations"
-            used={usageData.usage.translations.used}
-            limit={usageData.usage.translations.limit}
-            unlimited={usageData.usage.translations.unlimited}
-            icon={<div className="h-4 w-4 rounded bg-pink-500" />}
-          />
         </div>
 
         {tier === "FREE" && (
@@ -241,7 +234,7 @@ export function UsageDisplay() {
 }
 
 interface ToolUsageIndicatorProps {
-  tool: "documents" | "dna" | "photos" | "research" | "translations";
+  tool: "documents" | "dna" | "photos" | "research";
   showLabel?: boolean;
 }
 
@@ -263,7 +256,6 @@ export function ToolUsageIndicator({
     dna: "DNA",
     photos: "Photos",
     research: "Research",
-    translations: "Translations",
   };
 
   if (usage.unlimited) {

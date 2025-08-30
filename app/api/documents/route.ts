@@ -56,21 +56,33 @@ export async function GET(req: NextRequest) {
     // Generate signed URLs for viewing documents
     const documentsWithUrls = await Promise.all(
       documents.map(async (document) => {
+        let viewUrl: string | null = null;
+        
         try {
-          const viewUrl = await generateDownloadUrl(document.storagePath);
-          return { 
-            ...document, 
-            viewUrl,
-            analysis: document.analysis || null
-          };
+          // Only try to generate URL if we have a valid storage path
+          if (document.storagePath && document.storagePath.trim()) {
+            viewUrl = await generateDownloadUrl(document.storagePath);
+            
+            if (!viewUrl) {
+              console.warn(`No URL generated for document ${document.id} (${document.storagePath})`);
+              // Create a placeholder URL for documents that can't be accessed
+              viewUrl = `placeholder://document-unavailable/${document.id}`;
+            }
+          } else {
+            console.warn(`Document ${document.id} has no storage path`);
+            viewUrl = `placeholder://no-storage-path/${document.id}`;
+          }
         } catch (error) {
-          console.warn(`Failed to generate URL for document ${document.id}:`, error);
-          return { 
-            ...document, 
-            viewUrl: null,
-            analysis: document.analysis || null
-          };
+          console.error(`Failed to generate URL for document ${document.id}:`, error);
+          // Return a placeholder URL instead of null to prevent UI issues
+          viewUrl = `placeholder://error-generating-url/${document.id}`;
         }
+        
+        return { 
+          ...document, 
+          viewUrl,
+          analysis: document.analysis || null
+        };
       })
     );
 

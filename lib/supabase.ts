@@ -73,7 +73,7 @@ export async function uploadFile(
 
 // Helper function to get public URL for uploaded files
 export function getPublicUrl(bucket: string, path: string) {
-  const { data } = supabase.storage
+  const { data } = supabaseAdmin.storage
     .from(bucket)
     .getPublicUrl(path)
 
@@ -86,11 +86,18 @@ export async function createSignedUrl(
   path: string, 
   expiresIn = 3600
 ) {
-  const { data, error } = await supabase.storage
+  // Use admin client for signed URL creation to bypass RLS
+  const { data, error } = await supabaseAdmin.storage
     .from(bucket)
     .createSignedUrl(path, expiresIn)
 
   if (error) {
+    // Handle specific Supabase storage errors more gracefully
+    if (error.message?.includes('Object not found') || 
+        error.message?.includes('not found')) {
+      console.warn(`File not found in storage: ${bucket}/${path}`);
+      return null; // Return null instead of throwing for missing files
+    }
     throw new Error(`Failed to create signed URL: ${error.message}`)
   }
 

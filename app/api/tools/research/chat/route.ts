@@ -60,7 +60,13 @@ export async function POST(req: NextRequest) {
 
     const response = await researchChat(messages, userId);
 
-    // Save chat
+    // Save chat with auto-generated title
+    const firstUserMessage = messages.find(msg => msg.role === "user");
+    let title = "";
+    if (firstUserMessage) {
+      title = firstUserMessage.content.slice(0, 50) + (firstUserMessage.content.length > 50 ? "..." : "");
+    }
+
     const messagesJson = JSON.parse(
       JSON.stringify(messages)
     ) as unknown as Prisma.InputJsonValue;
@@ -68,6 +74,7 @@ export async function POST(req: NextRequest) {
     const chat = await prisma.researchChat.create({
       data: {
         userId,
+        title,
         messages: messagesJson,
       },
     });

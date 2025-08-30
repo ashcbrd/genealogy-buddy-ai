@@ -29,27 +29,12 @@ export async function uploadFileBuffer(
   contentType: string,
   metadata?: Record<string, string>
 ): Promise<string> {
+  const bucket = 'files'; // Use consistent bucket name
+  
   try {
-    // Determine the correct bucket based on file type and path
-    const isPhoto = contentType.startsWith('image/') || path.includes('photos/');
-    const isDocument = contentType.includes('pdf') || path.includes('documents/');
+    console.log(`Uploading file to ${bucket}/${path} with content type: ${contentType}`);
     
-    // Use the appropriate bucket
-    const bucket = 'files'; // Keep using files bucket for consistency
-    
-    // Ensure bucket exists
-    const { error: bucketError } = await supabaseAdmin.storage.createBucket(bucket, {
-      public: false,
-      allowedMimeTypes: ['image/*', 'application/pdf', 'text/*'],
-      fileSizeLimit: 50 * 1024 * 1024 // 50MB
-    });
-    
-    // Ignore error if bucket already exists
-    if (bucketError && !bucketError.message.includes('already exists')) {
-      console.warn(`Failed to create/verify bucket ${bucket}:`, bucketError.message);
-    }
-
-    console.log(`Uploading file to ${bucket}/${path}`);
+    // Upload the file to Supabase Storage
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
       .upload(path, body, {
@@ -64,25 +49,23 @@ export async function uploadFileBuffer(
       throw new Error(`Upload failed: ${error.message}`);
     }
 
-    console.log('File uploaded successfully:', data?.path);
+    if (!data?.path) {
+      throw new Error('Upload succeeded but no path returned');
+    }
+
+    console.log('File uploaded successfully:', data.path);
     
-    // Try to generate a signed URL immediately to verify upload worked
-    try {
-      const verifyUrl = await generateDownloadUrl(path, 60);
-      if (verifyUrl) {
-        console.log('Upload verification: URL generation successful');
-        return verifyUrl;
-      }
-    } catch (verifyErr) {
-      console.warn('Upload verification failed, using public URL:', verifyErr);
+    // Generate a signed URL for the uploaded file
+    const signedUrl = await generateDownloadUrl(data.path, 3600);
+    
+    if (!signedUrl) {
+      throw new Error('Failed to generate signed URL after upload');
     }
     
-    // Fallback to public URL
-    return getPublicUrl(bucket, path);
+    return signedUrl;
   } catch (err) {
     console.error('Storage upload error:', err);
-    // Return a more informative placeholder
-    return `placeholder://upload-failed/${path.split('/').pop()}`;
+    throw err; // Re-throw instead of returning placeholder
   }
 }
 
@@ -106,39 +89,34 @@ export async function generateDownloadUrl(
   path: string,
   expiresIn = 3600 // 1 hour
 ): Promise<string | null> {
+  const bucket = 'files'; // Use consistent bucket name
+  
   try {
-    // Try different bucket configurations based on the path
-    const buckets = ['files', 'photos', 'documents'];
-    const pathVariations = [
-      path, // Original path
-      path.replace(/^(photos|documents)\//, ''), // Remove prefix
-      path.replace(/^\/+/, '') // Remove leading slashes
-    ];
+    console.log(`Generating signed URL for: ${bucket}/${path}`);
     
-    for (const bucket of buckets) {
-      for (const testPath of pathVariations) {
-        try {
-          const url = await createSignedUrl(bucket, testPath, expiresIn);
-          console.log(`✅ Successfully created signed URL: ${bucket}/${testPath}`);
-          return url;
-        } catch (bucketErr) {
-          // Continue to next combination
-        }
-      }
+    // Clean the path - remove leading slashes and normalize
+    const cleanPath = path.replace(/^\/+/, '');
+
+    // Try to create signed URL using the admin client
+    const url = await createSignedUrl(bucket, cleanPath, expiresIn);
+    
+    if (url) {
+      console.log(`✅ Successfully created signed URL for: ${cleanPath}`);
+      return url;
     }
     
-    // If all attempts fail, try to return a public URL as fallback
-    try {
-      const publicUrl = getPublicUrl('files', path);
-      console.log(`Using public URL fallback for: ${path}`);
-      return publicUrl;
-    } catch (publicErr) {
-      console.warn(`All URL generation methods failed for ${path}`);
-      return null;
-    }
+    console.warn(`Failed to generate signed URL for: ${cleanPath} - file may not exist`);
+    return `placeholder://document-not-found/${cleanPath}`;
     
   } catch (err) {
-    console.warn(`Failed to generate download URL for ${path}:`, err);
+    console.error(`Failed to generate download URL for ${path}:`, err);
+    
+    // If it's an "Object not found" error, return a placeholder
+    if (err instanceof Error && err.message.includes('Object not found')) {
+      console.warn(`File not found in storage: ${path} - returning placeholder URL`);
+      return `placeholder://document-not-found/${path}`;
+    }
+    
     return null;
   }
 }

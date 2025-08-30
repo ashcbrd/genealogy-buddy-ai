@@ -21,8 +21,6 @@ enum SubscriptionTier {
 enum AnalysisType {
   DOCUMENT
   DNA
-  FAMILY_TREE
-  TRANSLATION
   RESEARCH
   PHOTO
 }
@@ -86,7 +84,6 @@ model User {
   subscription     Subscription?
   usage           Usage[]
   documents       Document[]
-  familyTrees     FamilyTree[]
   analyses        Analysis[]
   photos          Photo[]
   researchChats   ResearchChat[]
@@ -150,46 +147,6 @@ model Document {
   deletedAt      DateTime?
 }
 
-model FamilyTree {
-  id              String            @id @default(cuid())
-  userId         String
-  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  name           String
-  data           Json
-  individuals    Individual[]
-  
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  deletedAt      DateTime?
-}
-
-model Individual {
-  id              String            @id @default(cuid())
-  treeId         String
-  tree           FamilyTree        @relation(fields: [treeId], references: [id], onDelete: Cascade)
-  
-  firstName      String?
-  lastName       String?
-  birthDate      DateTime?
-  deathDate      DateTime?
-  birthPlace     String?
-  deathPlace     String?
-  
-  fatherId       String?
-  father         Individual?       @relation("FatherChild", fields: [fatherId], references: [id])
-  motherId       String?
-  mother         Individual?       @relation("MotherChild", fields: [motherId], references: [id])
-  
-  children       Individual[]      @relation("FatherChild")
-  motherChildren Individual[]      @relation("MotherChild")
-  
-  confidence     Float             @default(1.0)
-  aiGenerated    Boolean           @default(false)
-  
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-}
 
 model Analysis {
   id              String            @id @default(cuid())
@@ -241,6 +198,7 @@ model ResearchChat {
   userId         String
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   
+  title          String?           // Auto-generated title from first message
   messages       Json
   context        Json?
   

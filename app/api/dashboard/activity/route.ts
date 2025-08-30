@@ -42,15 +42,7 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    // Get recent family tree updates
-    const recentTrees = await prisma.familyTree.findMany({
-      where: { 
-        userId,
-        deletedAt: null,
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: limit,
-    });
+    // Family tree functionality has been removed - no recent trees to fetch
 
     // Get recent photos
     const recentPhotos = await prisma.photo.findMany({
@@ -86,14 +78,7 @@ export async function GET(req: NextRequest) {
           mimeType: doc.mimeType,
         },
       })),
-      ...recentTrees.map(tree => ({
-        id: tree.id,
-        type: 'tree',
-        title: 'Family Tree Updated',
-        description: tree.name,
-        timestamp: tree.updatedAt,
-        metadata: {},
-      })),
+      // Family tree activities removed
       ...recentPhotos.map(photo => ({
         id: photo.id,
         type: 'photo',

@@ -18,7 +18,9 @@
       "Bash(curl:*)",
       "Bash(rm:*)",
       "Bash(test:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "WebFetch(domain:www.libertyellisfoundation.org)",
+      "WebFetch(domain:www.familysearch.org)"
     ],
     "deny": [],
     "ask": [],

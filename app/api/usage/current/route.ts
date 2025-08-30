@@ -64,18 +64,9 @@ export async function GET(req: NextRequest) {
           createdAt: { gte: startOfMonth },
         },
       }),
-      // Translation analysis count
-      prisma.analysis.count({
-        where: {
-          userId,
-          type: AnalysisType.TRANSLATION,
-          createdAt: { gte: startOfMonth },
-          deletedAt: null,
-        },
-      }),
     ]);
 
-    const [documentsUsed, dnaUsed, photosUsed, researchUsed, translationsUsed] = usageCounts;
+    const [documentsUsed, dnaUsed, photosUsed, researchUsed] = usageCounts;
 
     const usage = {
       documents: {
@@ -97,11 +88,6 @@ export async function GET(req: NextRequest) {
         used: researchUsed,
         limit: limits.research,
         unlimited: limits.research === -1,
-      },
-      translations: {
-        used: translationsUsed,
-        limit: limits.translations,
-        unlimited: limits.translations === -1,
       },
     };
 

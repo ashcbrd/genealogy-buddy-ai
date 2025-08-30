@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useCallback } from "react";
@@ -37,7 +38,6 @@ import {
   Sparkles,
   Clock,
   BookOpen,
-  Share2,
   ArrowLeft,
   Image as ImageIcon,
   Info,
@@ -58,7 +58,7 @@ import {
   getFileRejectionMessage,
 } from "@/lib/error-handler";
 import { useToolAccess } from "@/hooks/use-user-status";
-import { usePhotoHistory } from "@/hooks/use-photo-history";
+import { usePhotoHistory, type SavedPhoto } from "@/hooks/use-photo-history";
 
 interface PhotoAnalysis {
   dateEstimate: {
@@ -91,7 +91,7 @@ export default function PhotoStorytellerPage() {
   const [currentTab, setCurrentTab] = useState("upload");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<SavedPhoto | null>(null);
 
   const { refreshUsageAfterAnalysis } = useSimpleAnalysisRefresh();
   const { usage, canUse } = useToolAccess("photos");
@@ -100,12 +100,12 @@ export default function PhotoStorytellerPage() {
   const shouldUpgrade = isAtUsageLimit || hasNoAccess;
 
   // Use the photo history hook
-  const { 
-    photos: savedPhotos, 
+  const {
+    photos: savedPhotos,
     isLoading: photosLoading,
     error: photosError,
     deletePhoto,
-    refresh: refreshPhotos 
+    refresh: refreshPhotos,
   } = usePhotoHistory();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -322,782 +322,829 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
               {/* Upload Section */}
               <div className="lg:col-span-2 space-y-6">
                 <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <CardTitle className="text-xl">Upload Photo</CardTitle>
-                  <CardDescription>
-                    Upload a historical photo to discover its research context and
-                    story
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift ${
-                      isDragActive
-                        ? "border-primary bg-primary/5"
-                        : preview
-                        ? "border-green-500 bg-green-50/50"
-                        : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    <div className="flex flex-col items-center gap-4">
-                      {preview ? (
-                        <div className="relative w-32 h-32 rounded-lg overflow-hidden">
-                          <Image
-                            src={preview}
-                            alt="Preview"
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                          <Upload className="w-8 h-8 text-primary" />
-                        </div>
-                      )}
-                      {preview ? (
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {file?.name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {file && (file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="font-medium text-foreground mb-1">
-                            {isDragActive
-                              ? "Drop your photo here"
-                              : "Drag & drop a photo here"}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            or click to browse files
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {fileRejections.length > 0 && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <div className="space-y-2">
-                          <p className="font-medium">Photo Upload Error</p>
-                          <p>
-                            {getFileRejectionMessage(
-                              "photo",
-                              fileRejections[0].errors[0]
-                            )}
-                          </p>
-                          <p className="text-sm opacity-90">
-                            📸 Best results: Use clear photos with visible faces
-                            and details, good lighting, and minimal blur.
-                          </p>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {isAnalyzing && (
-                    <div className="flex items-center justify-center text-sm text-muted-foreground">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Analyzing photo…
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="description"
-                      className="text-sm font-medium"
+                  <CardHeader>
+                    <CardTitle className="text-xl">Upload Photo</CardTitle>
+                    <CardDescription>
+                      Upload a historical photo to discover its research context
+                      and story
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div
+                      {...getRootProps()}
+                      className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all hover-lift ${
+                        isDragActive
+                          ? "border-primary bg-primary/5"
+                          : preview
+                          ? "border-green-500 bg-green-50/50"
+                          : "border-border hover:border-primary/50 hover:bg-muted/50"
+                      }`}
                     >
-                      Photo Description (Optional)
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Provide any context about the photo - when it was taken, who's in it, where it was taken, etc. This helps improve the AI analysis."
-                      className="min-h-[80px] transition-colors focus:border-primary/50"
-                    />
-                  </div>
+                      <input {...getInputProps()} />
+                      <div className="flex flex-col items-center gap-4">
+                        {preview ? (
+                          <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                            <Image
+                              src={preview}
+                              alt="Preview"
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                            <Upload className="w-8 h-8 text-primary" />
+                          </div>
+                        )}
+                        {preview ? (
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {file?.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {file && (file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="font-medium text-foreground mb-1">
+                              {isDragActive
+                                ? "Drop your photo here"
+                                : "Drag & drop a photo here"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              or click to browse files
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                  <div className="pt-4 border-t">
-                    <Button
-                      onClick={handleAnalyzeAction}
-                      disabled={!file || isAnalyzing}
-                      className="w-full hover-lift"
-                      size="lg"
-                    >
-                      {isAnalyzing ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : shouldUpgrade ? (
-                        <Crown className="mr-2 h-5 w-5" />
-                      ) : (
-                        <Sparkles className="mr-2 h-5 w-5" />
-                      )}
-                      {isAnalyzing
-                        ? "Analyzing Photo..."
-                        : shouldUpgrade
-                        ? "Upgrade to Analyze Photo"
-                        : "Analyze Photo"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                    {fileRejections.length > 0 && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <div className="space-y-2">
+                            <p className="font-medium">Photo Upload Error</p>
+                            <p>
+                              {getFileRejectionMessage(
+                                "photo",
+                                fileRejections[0].errors[0]
+                              )}
+                            </p>
+                            <p className="text-sm opacity-90">
+                              📸 Best results: Use clear photos with visible
+                              faces and details, good lighting, and minimal
+                              blur.
+                            </p>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="description"
+                        className="text-sm font-medium"
+                      >
+                        Photo Description (Optional)
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Provide any context about the photo - when it was taken, who's in it, where it was taken, etc. This helps improve the AI analysis."
+                        className="min-h-[80px] transition-colors focus:border-primary/50"
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t">
+                      <Button
+                        onClick={handleAnalyzeAction}
+                        disabled={!file || isAnalyzing}
+                        className="w-full hover-lift"
+                        size="lg"
+                      >
+                        {isAnalyzing ? (
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : shouldUpgrade ? (
+                          <Crown className="mr-2 h-5 w-5" />
+                        ) : (
+                          <Sparkles className="mr-2 h-5 w-5" />
+                        )}
+                        {isAnalyzing
+                          ? "Analyzing Photo..."
+                          : shouldUpgrade
+                          ? "Upgrade to Analyze Photo"
+                          : "Analyze Photo"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Info Section */}
+              <div className="space-y-6">
+                <Card variant="elevated" className="animate-slide-up">
+                  <CardHeader>
+                    <CardTitle className="text-xl">Supported Formats</CardTitle>
+                    <CardDescription>
+                      We support most common image formats
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">JPEG / JPG</p>
+                          <p className="text-xs text-muted-foreground">
+                            Most common format
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">PNG</p>
+                          <p className="text-xs text-muted-foreground">
+                            High quality format
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">WebP / Other</p>
+                          <p className="text-xs text-muted-foreground">
+                            Modern formats
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card variant="elevated" className="animate-slide-up">
+                  <CardHeader>
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Eye className="h-5 w-5" />
+                      What We Analyze
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <Clock className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Time Period</p>
+                        <p className="text-muted-foreground text-xs">
+                          Dating based on clothing, technology, and style
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Users className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">People & Roles</p>
+                        <p className="text-muted-foreground text-xs">
+                          Identifying individuals and their relationships
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Location Clues</p>
+                        <p className="text-muted-foreground text-xs">
+                          Geographic and environmental indicators
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <BookOpen className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium mb-1">Historical Context</p>
+                        <p className="text-muted-foreground text-xs">
+                          Social and cultural background information
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card variant="elevated" className="animate-slide-up">
+                  <CardHeader>
+                    <CardTitle className="text-xl">
+                      Tips for Best Results
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Use high-resolution scans or photos when possible
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Include any known context in the description field
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Photos with clear details work better for analysis
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                      <p className="text-muted-foreground">
+                        Group photos provide more social context
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-
-            {/* Info Section */}
-            <div className="space-y-6">
-              <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <CardTitle className="text-xl">Supported Formats</CardTitle>
-                  <CardDescription>
-                    We support most common image formats
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                        <ImageIcon className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">JPEG / JPG</p>
-                        <p className="text-xs text-muted-foreground">
-                          Most common format
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                      <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
-                        <ImageIcon className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">PNG</p>
-                        <p className="text-xs text-muted-foreground">
-                          High quality format
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                      <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                        <ImageIcon className="h-4 w-4 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">WebP / Other</p>
-                        <p className="text-xs text-muted-foreground">
-                          Modern formats
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
-                    What We Analyze
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <Clock className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium mb-1">Time Period</p>
-                      <p className="text-muted-foreground text-xs">
-                        Dating based on clothing, technology, and style
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Users className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium mb-1">People & Roles</p>
-                      <p className="text-muted-foreground text-xs">
-                        Identifying individuals and their relationships
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium mb-1">Location Clues</p>
-                      <p className="text-muted-foreground text-xs">
-                        Geographic and environmental indicators
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <BookOpen className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium mb-1">Historical Context</p>
-                      <p className="text-muted-foreground text-xs">
-                        Social and cultural background information
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <CardTitle className="text-xl">
-                    Tips for Best Results
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                    <p className="text-muted-foreground">
-                      Use high-resolution scans or photos when possible
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                    <p className="text-muted-foreground">
-                      Include any known context in the description field
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                    <p className="text-muted-foreground">
-                      Photos with clear details work better for analysis
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                    <p className="text-muted-foreground">
-                      Group photos provide more social context
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
           </TabsContent>
 
           {/* Results Tab */}
           <TabsContent value="results" className="mt-6">
             {analysis && (
-          /* Analysis Results */
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl">
-                        Photo Story Analysis
-                      </CardTitle>
-                      <CardDescription>
-                        AI-powered insights about your historical photo
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadStory}
-                        className="hover-lift"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setAnalysis(null);
-                          setFile(null);
-                          setPreview("");
-                          setDescription("");
-                        }}
-                        className="hover-lift"
-                      >
-                        New Analysis
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Tabs
-                    value={activeTab}
-                    onValueChange={setActiveTab}
-                    className="w-full"
-                  >
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger
-                        value="story"
-                        className="flex items-center gap-2"
-                      >
-                        <BookOpen className="h-4 w-4" />
-                        <span className="hidden sm:inline">Story</span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="people"
-                        className="flex items-center gap-2"
-                      >
-                        <Users className="h-4 w-4" />
-                        <span className="hidden sm:inline">People</span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="context"
-                        className="flex items-center gap-2"
-                      >
-                        <Clock className="h-4 w-4" />
-                        <span className="hidden sm:inline">Context</span>
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="details"
-                        className="flex items-center gap-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span className="hidden sm:inline">Details</span>
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="story" className="mt-6">
-                      <div className="space-y-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <BookOpen className="h-5 w-5 text-primary" />
-                              Generated Story
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.story &&
-                            analysis.story !==
-                              "Unable to generate a detailed story from the available information." ? (
-                              <p className="text-foreground leading-relaxed whitespace-pre-wrap">
-                                {analysis.story}
-                              </p>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <BookOpen className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    No detailed story could be generated from
-                                    the available information.
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Try uploading a clearer image or providing
-                                    additional context.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <Info className="h-5 w-5 text-primary" />
-                              Historical Context
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.historicalContext &&
-                            analysis.historicalContext !==
-                              "No specific historical context could be determined." ? (
-                              <p className="text-muted-foreground leading-relaxed">
-                                {analysis.historicalContext}
-                              </p>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <Info className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    No specific historical context could be
-                                    determined.
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Additional image details or context might
-                                    help provide historical background.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
+              /* Analysis Results */
+              <div className="grid gap-8 lg:grid-cols-3">
+                <div className="lg:col-span-2">
+                  <Card variant="elevated" className="animate-slide-up">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-xl">
+                            Photo Story Analysis
+                          </CardTitle>
+                          <CardDescription>
+                            AI-powered insights about your historical photo
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadStory}
+                            className="hover-lift"
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setAnalysis(null);
+                              setFile(null);
+                              setPreview("");
+                              setDescription("");
+                            }}
+                            className="hover-lift"
+                          >
+                            New Analysis
+                          </Button>
+                        </div>
                       </div>
-                    </TabsContent>
+                    </CardHeader>
+                    <CardContent>
+                      <Tabs
+                        value={activeTab}
+                        onValueChange={setActiveTab}
+                        className="w-full"
+                      >
+                        <TabsList className="grid w-full grid-cols-4">
+                          <TabsTrigger
+                            value="story"
+                            className="flex items-center gap-2"
+                          >
+                            <BookOpen className="h-4 w-4" />
+                            <span className="hidden sm:inline">Story</span>
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="people"
+                            className="flex items-center gap-2"
+                          >
+                            <Users className="h-4 w-4" />
+                            <span className="hidden sm:inline">People</span>
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="context"
+                            className="flex items-center gap-2"
+                          >
+                            <Clock className="h-4 w-4" />
+                            <span className="hidden sm:inline">Context</span>
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="details"
+                            className="flex items-center gap-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                            <span className="hidden sm:inline">Details</span>
+                          </TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="people" className="mt-6">
-                      <div className="space-y-4">
-                        {analysis.people &&
-                        analysis.people.length > 0 &&
-                        analysis.people[0].position !== "Not specified" ? (
-                          analysis.people.map((person, index) => (
-                            <Card key={index}>
-                              <CardContent className="p-4">
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                                      <Users className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <div>
-                                      <h3 className="font-semibold">
-                                        Person {index + 1}
-                                      </h3>
+                        <TabsContent value="story" className="mt-6">
+                          <div className="space-y-6">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <BookOpen className="h-5 w-5 text-primary" />
+                                  Generated Story
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.story &&
+                                analysis.story !==
+                                  "Unable to generate a detailed story from the available information." ? (
+                                  <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                                    {analysis.story}
+                                  </p>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <BookOpen className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        No detailed story could be generated
+                                        from the available information.
+                                      </p>
                                       <p className="text-sm text-muted-foreground">
-                                        {person.position}
+                                        Try uploading a clearer image or
+                                        providing additional context.
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="grid gap-3 text-sm">
-                                    <div className="flex items-center justify-between w-max gap-x-4 w-max gap-x-4">
+                                )}
+                              </CardContent>
+                            </Card>
+
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <Info className="h-5 w-5 text-primary" />
+                                  Historical Context
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.historicalContext &&
+                                analysis.historicalContext !==
+                                  "No specific historical context could be determined." ? (
+                                  <p className="text-muted-foreground leading-relaxed">
+                                    {analysis.historicalContext}
+                                  </p>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <Info className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        No specific historical context could be
+                                        determined.
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Additional image details or context
+                                        might help provide historical
+                                        background.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="people" className="mt-6">
+                          <div className="space-y-4">
+                            {analysis.people &&
+                            analysis.people.length > 0 &&
+                            analysis.people[0].position !== "Not specified" ? (
+                              analysis.people.map((person, index) => (
+                                <Card key={index}>
+                                  <CardContent className="p-4">
+                                    <div className="space-y-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                                          <Users className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div>
+                                          <h3 className="font-semibold">
+                                            Person {index + 1}
+                                          </h3>
+                                          <p className="text-sm text-muted-foreground">
+                                            {person.position}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="grid gap-3 text-sm">
+                                        <div className="flex items-center justify-between w-max gap-x-4">
+                                          <span className="text-muted-foreground">
+                                            Age Estimate:
+                                          </span>
+                                          <Badge
+                                            variant={
+                                              person.ageEstimate ===
+                                              "Age unknown"
+                                                ? "secondary"
+                                                : "outline"
+                                            }
+                                          >
+                                            {person.ageEstimate}
+                                          </Badge>
+                                        </div>
+                                        <div className="flex items-center justify-between w-max gap-x-4">
+                                          <span className="text-muted-foreground">
+                                            Possible Role:
+                                          </span>
+                                          <span
+                                            className={`font-medium ${
+                                              person.possibleRole ===
+                                              "Role unknown"
+                                                ? "text-muted-foreground"
+                                                : ""
+                                            }`}
+                                          >
+                                            {person.possibleRole}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <span className="text-muted-foreground">
+                                            Clothing:
+                                          </span>
+                                          <p
+                                            className={`mt-1 ${
+                                              person.clothingDescription ===
+                                              "No clothing details available"
+                                                ? "text-muted-foreground"
+                                                : "text-foreground"
+                                            }`}
+                                          >
+                                            {person.clothingDescription}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))
+                            ) : (
+                              <div className="flex items-center justify-center py-12 text-center">
+                                <div className="space-y-3">
+                                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                    <Users className="h-8 w-8 text-muted-foreground" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-muted-foreground mb-1">
+                                      No people identified
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      Unable to identify specific individuals in
+                                      this photograph.
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      Try uploading a clearer image with visible
+                                      faces and details.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="context" className="mt-6">
+                          <div className="space-y-6">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <Calendar className="h-5 w-5 text-primary" />
+                                  Date Estimate
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.dateEstimate.period !==
+                                "Unknown time period" ? (
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between w-max gap-x-4">
                                       <span className="text-muted-foreground">
-                                        Age Estimate:
+                                        Period:
                                       </span>
-                                      <Badge
-                                        variant={
-                                          person.ageEstimate === "Age unknown"
-                                            ? "secondary"
-                                            : "outline"
-                                        }
-                                      >
-                                        {person.ageEstimate}
+                                      <Badge variant="secondary">
+                                        {analysis.dateEstimate.period}
                                       </Badge>
                                     </div>
                                     <div className="flex items-center justify-between w-max gap-x-4">
                                       <span className="text-muted-foreground">
-                                        Possible Role:
+                                        Confidence:
                                       </span>
-                                      <span
-                                        className={`font-medium ${
-                                          person.possibleRole === "Role unknown"
-                                            ? "text-muted-foreground"
-                                            : ""
-                                        }`}
+                                      <Badge
+                                        variant={
+                                          analysis.dateEstimate.confidence < 30
+                                            ? "destructive"
+                                            : analysis.dateEstimate.confidence <
+                                              60
+                                            ? "secondary"
+                                            : "outline"
+                                        }
                                       >
-                                        {person.possibleRole}
-                                      </span>
+                                        {analysis.dateEstimate.confidence}%
+                                      </Badge>
                                     </div>
                                     <div>
                                       <span className="text-muted-foreground">
-                                        Clothing:
+                                        Explanation:
                                       </span>
-                                      <p
-                                        className={`mt-1 ${
-                                          person.clothingDescription ===
-                                          "No clothing details available"
-                                            ? "text-muted-foreground"
-                                            : "text-foreground"
-                                        }`}
-                                      >
-                                        {person.clothingDescription}
+                                      <p className="mt-1 text-foreground">
+                                        {analysis.dateEstimate.explanation}
                                       </p>
                                     </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <Calendar className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        Unable to determine time period
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Insufficient visual information to
+                                        estimate the date.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </CardContent>
                             </Card>
-                          ))
-                        ) : (
-                          <div className="flex items-center justify-center py-12 text-center">
-                            <div className="space-y-3">
-                              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                <Users className="h-8 w-8 text-muted-foreground" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-muted-foreground mb-1">
-                                  No people identified
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Unable to identify specific individuals in
-                                  this photograph.
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Try uploading a clearer image with visible
-                                  faces and details.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
 
-                    <TabsContent value="context" className="mt-6">
-                      <div className="space-y-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <Calendar className="h-5 w-5 text-primary" />
-                              Date Estimate
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.dateEstimate.period !==
-                            "Unknown time period" ? (
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between w-max gap-x-4">
-                                  <span className="text-muted-foreground">
-                                    Period:
-                                  </span>
-                                  <Badge variant="secondary">
-                                    {analysis.dateEstimate.period}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center justify-between w-max gap-x-4">
-                                  <span className="text-muted-foreground">
-                                    Confidence:
-                                  </span>
-                                  <Badge
-                                    variant={
-                                      analysis.dateEstimate.confidence < 30
-                                        ? "destructive"
-                                        : analysis.dateEstimate.confidence < 60
-                                        ? "secondary"
-                                        : "outline"
-                                    }
-                                  >
-                                    {analysis.dateEstimate.confidence}%
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">
-                                    Explanation:
-                                  </span>
-                                  <p className="mt-1 text-foreground">
-                                    {analysis.dateEstimate.explanation}
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <Calendar className="h-6 w-6 text-muted-foreground" />
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <MapPin className="h-5 w-5 text-primary" />
+                                  Location Clues
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.locationClues &&
+                                analysis.locationClues.length > 0 &&
+                                analysis.locationClues[0] !==
+                                  "No location clues available" ? (
+                                  <div className="space-y-2">
+                                    {analysis.locationClues.map(
+                                      (clue, index) => (
+                                        <div
+                                          key={index}
+                                          className="flex items-start gap-2"
+                                        >
+                                          <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                                          <p className="text-muted-foreground">
+                                            {clue}
+                                          </p>
+                                        </div>
+                                      )
+                                    )}
                                   </div>
-                                  <p className="text-muted-foreground">
-                                    Unable to determine time period
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Insufficient visual information to estimate
-                                    the date.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <MapPin className="h-5 w-5 text-primary" />
-                              Location Clues
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.locationClues &&
-                            analysis.locationClues.length > 0 &&
-                            analysis.locationClues[0] !==
-                              "No location clues available" ? (
-                              <div className="space-y-2">
-                                {analysis.locationClues.map((clue, index) => (
-                                  <div
-                                    key={index}
-                                    className="flex items-start gap-2"
-                                  >
-                                    <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                                    <p className="text-muted-foreground">
-                                      {clue}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <MapPin className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    No location clues available
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Unable to identify geographical or
-                                    architectural indicators.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="details" className="mt-6">
-                      <div className="space-y-6">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg">
-                              Clothing Analysis
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.clothingAnalysis &&
-                            analysis.clothingAnalysis !==
-                              "No clothing details could be analyzed from the available information." ? (
-                              <p className="text-muted-foreground leading-relaxed">
-                                {analysis.clothingAnalysis}
-                              </p>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    No clothing details available
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Unable to analyze clothing or uniform
-                                    details from the image.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg">
-                              Background Analysis
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.backgroundAnalysis &&
-                            analysis.backgroundAnalysis !==
-                              "No background details could be determined from the available information." ? (
-                              <p className="text-muted-foreground leading-relaxed">
-                                {analysis.backgroundAnalysis}
-                              </p>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <Eye className="h-6 w-6 text-muted-foreground" />
-                                  </div>
-                                  <p className="text-muted-foreground">
-                                    No background details available
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Unable to analyze background elements or
-                                    setting details.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              <Sparkles className="h-5 w-5 text-primary" />
-                              Research Suggestions
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {analysis.suggestions &&
-                            analysis.suggestions.length > 0 &&
-                            analysis.suggestions[0] !==
-                              "Upload a clearer image or provide additional context for better analysis" ? (
-                              <div className="space-y-2">
-                                {analysis.suggestions.map(
-                                  (suggestion, index) => (
-                                    <div
-                                      key={index}
-                                      className="flex items-start gap-2"
-                                    >
-                                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <MapPin className="h-6 w-6 text-muted-foreground" />
+                                      </div>
                                       <p className="text-muted-foreground">
-                                        {suggestion}
+                                        No location clues available
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Unable to identify geographical or
+                                        architectural indicators.
                                       </p>
                                     </div>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center py-8 text-center">
-                                <div className="space-y-2">
-                                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
-                                    <Sparkles className="h-6 w-6 text-muted-foreground" />
                                   </div>
-                                  <p className="text-muted-foreground">
-                                    No specific research suggestions available
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    Upload a clearer image or provide additional
-                                    context for targeted genealogy
-                                    recommendations.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </TabsContent>
 
-            {/* Photo Preview */}
-            <div className="space-y-6">
-              <Card variant="elevated" className="animate-slide-up">
-                <CardHeader>
-                  <CardTitle className="text-xl">Original Photo</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {preview && (
-                    <div className="relative w-full aspect-square rounded-lg overflow-hidden">
-                      <Image
-                        src={preview}
-                        alt="Analyzed photo"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  )}
-                  {file && (
-                    <div className="mt-4 space-y-2 text-sm">
-                      <div className="flex items-center justify-between w-max gap-x-4">
-                        <span className="text-muted-foreground">
-                          File name:
-                        </span>
-                        <span className="font-medium truncate max-w-32">
-                          {file.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between w-max gap-x-4">
-                        <span className="text-muted-foreground">Size:</span>
-                        <span className="font-medium">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+                        <TabsContent value="details" className="mt-6">
+                          <div className="space-y-6">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">
+                                  Clothing Analysis
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.clothingAnalysis &&
+                                analysis.clothingAnalysis !==
+                                  "No clothing details could be analyzed from the available information." ? (
+                                  <p className="text-muted-foreground leading-relaxed">
+                                    {analysis.clothingAnalysis}
+                                  </p>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        No clothing details available
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Unable to analyze clothing or uniform
+                                        details from the image.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">
+                                  Background Analysis
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.backgroundAnalysis &&
+                                analysis.backgroundAnalysis !==
+                                  "No background details could be determined from the available information." ? (
+                                  <p className="text-muted-foreground leading-relaxed">
+                                    {analysis.backgroundAnalysis}
+                                  </p>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <Eye className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        No background details available
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Unable to analyze background elements or
+                                        setting details.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                  <Sparkles className="h-5 w-5 text-primary" />
+                                  Research Suggestions
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {analysis.suggestions &&
+                                analysis.suggestions.length > 0 &&
+                                analysis.suggestions[0] !==
+                                  "Upload a clearer image or provide additional context for better analysis" ? (
+                                  <div className="space-y-2">
+                                    {analysis.suggestions.map(
+                                      (suggestion, index) => (
+                                        <div
+                                          key={index}
+                                          className="flex items-start gap-2"
+                                        >
+                                          <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                                          <p className="text-muted-foreground">
+                                            {suggestion}
+                                          </p>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-center">
+                                    <div className="space-y-2">
+                                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto">
+                                        <Sparkles className="h-6 w-6 text-muted-foreground" />
+                                      </div>
+                                      <p className="text-muted-foreground">
+                                        No specific research suggestions
+                                        available
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Upload a clearer image or provide
+                                        additional context for targeted
+                                        genealogy recommendations.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Photo Preview */}
+                <div className="space-y-6">
+                  <Card variant="elevated" className="animate-slide-up">
+                    <CardHeader>
+                      <CardTitle className="text-xl">Original Photo</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {preview ||
+                      (selectedPhoto &&
+                        selectedPhoto.viewUrl &&
+                        !selectedPhoto.viewUrl.startsWith("placeholder://")) ? (
+                        <div className="relative w-full aspect-square rounded-lg overflow-hidden">
+                          <Image
+                            src={selectedPhoto?.viewUrl || preview || ""}
+                            alt="Analyzed photo"
+                            fill
+                            className="object-cover"
+                            onError={(e) => {
+                              // Fall back to placeholder if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = "none";
+                              const parent = target.parentElement;
+                              if (
+                                parent &&
+                                !parent.querySelector(".fallback-photo-icon")
+                              ) {
+                                const fallbackDiv =
+                                  document.createElement("div");
+                                fallbackDiv.className =
+                                  "w-full h-full flex items-center justify-center bg-gray-50 fallback-photo-icon";
+                                fallbackDiv.innerHTML =
+                                  '<svg class="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path></svg>';
+                                parent.appendChild(fallbackDiv);
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-square rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                          <div className="text-center text-gray-500">
+                            <ImageIcon className="w-12 h-12 mx-auto mb-2" />
+                            <p className="text-sm">
+                              No photo preview available
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {(file || selectedPhoto) && (
+                        <div className="mt-4 space-y-2 text-sm">
+                          <div className="flex items-center justify-between w-max gap-x-4">
+                            <span className="text-muted-foreground">
+                              File name:
+                            </span>
+                            <span className="font-medium truncate max-w-32">
+                              {selectedPhoto?.filename ||
+                                file?.name ||
+                                "Unknown"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between w-max gap-x-4">
+                            <span className="text-muted-foreground">Size:</span>
+                            <span className="font-medium">
+                              {file
+                                ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+                                : selectedPhoto?.size
+                                ? `${(selectedPhoto.size / 1024 / 1024).toFixed(
+                                    2
+                                  )} MB`
+                                : "Unknown"}
+                            </span>
+                          </div>
+                          {selectedPhoto?.viewUrl?.startsWith(
+                            "placeholder://"
+                          ) && (
+                            <div className="flex items-center gap-2 text-xs text-amber-600">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                              Photo preview unavailable
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             )}
           </TabsContent>
 
@@ -1143,11 +1190,13 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                     <AlertDescription>{photosError}</AlertDescription>
                   </Alert>
                 )}
-                
+
                 {photosLoading ? (
                   <div className="text-center py-12">
                     <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Loading photo history...</p>
+                    <p className="text-muted-foreground">
+                      Loading photo history...
+                    </p>
                   </div>
                 ) : filteredPhotos.length ? (
                   <ScrollArea className="h-[600px]">
@@ -1167,20 +1216,28 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3">
                               <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                {photo.viewUrl && !photo.viewUrl.startsWith('placeholder://') ? (
+                                {photo.viewUrl &&
+                                !photo.viewUrl.startsWith("placeholder://") ? (
                                   <img
                                     src={photo.viewUrl}
                                     alt={photo.filename}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
                                       // Replace with fallback icon if image fails to load
-                                      const target = e.target as HTMLImageElement;
-                                      target.style.display = 'none';
+                                      const target =
+                                        e.target as HTMLImageElement;
+                                      target.style.display = "none";
                                       const parent = target.parentElement;
-                                      if (parent && !parent.querySelector('.fallback-icon')) {
-                                        const fallbackDiv = document.createElement('div');
-                                        fallbackDiv.className = 'w-full h-full flex items-center justify-center fallback-icon';
-                                        fallbackDiv.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path></svg>';
+                                      if (
+                                        parent &&
+                                        !parent.querySelector(".fallback-icon")
+                                      ) {
+                                        const fallbackDiv =
+                                          document.createElement("div");
+                                        fallbackDiv.className =
+                                          "w-full h-full flex items-center justify-center fallback-icon";
+                                        fallbackDiv.innerHTML =
+                                          '<svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path></svg>';
                                         parent.appendChild(fallbackDiv);
                                       }
                                     }}
@@ -1188,8 +1245,13 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center">
                                     <Camera className="w-6 h-6 text-gray-400" />
-                                    {photo.viewUrl?.startsWith('placeholder://') && (
-                                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full" title="Image not available" />
+                                    {photo.viewUrl?.startsWith(
+                                      "placeholder://"
+                                    ) && (
+                                      <div
+                                        className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full"
+                                        title="Image not available"
+                                      />
                                     )}
                                   </div>
                                 )}
@@ -1207,7 +1269,8 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                                   <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                                     <span className="flex items-center gap-1">
                                       <Clock className="w-3 h-3" />
-                                      {photo.analysis.dateEstimate?.period || 'Unknown period'}
+                                      {photo.analysis.dateEstimate?.period ||
+                                        "Unknown period"}
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <BookOpen className="w-3 h-3" />
@@ -1215,7 +1278,8 @@ ${analysis.suggestions.map((suggestion) => `- ${suggestion}`).join("\n")}
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <Users className="w-3 h-3" />
-                                      {photo.analysis.people?.length || 0} people
+                                      {photo.analysis.people?.length || 0}{" "}
+                                      people
                                     </span>
                                   </div>
                                 )}

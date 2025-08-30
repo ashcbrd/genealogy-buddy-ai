@@ -49,8 +49,7 @@ export async function GET() {
     const dnaCount =
       analyses.find((a: AnalysisGroup) => a.type === "DNA")?._count._all ?? 0;
 
-    const translationsCount =
-      analyses.find((a: AnalysisGroup) => a.type === "TRANSLATION")?._count._all ?? 0;
+    const translationsCount = 0; // TRANSLATION type removed
 
     const stats = {
       documentsAnalyzed: docsCount,
@@ -63,11 +62,6 @@ export async function GET() {
       documents: {
         used: usage.find((u: UsageRecord) => u.type === "DOCUMENT")?.count ?? 0,
         limit: limits.documents,
-      },
-      translations: {
-        used:
-          usage.find((u: UsageRecord) => u.type === "TRANSLATION")?.count ?? 0,
-        limit: limits.translations,
       },
       dna: {
         used: usage.find((u: UsageRecord) => u.type === "DNA")?.count ?? 0,

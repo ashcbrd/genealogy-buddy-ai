@@ -10,6 +10,7 @@ import type {
   JsonArray,
   JsonValue,
 } from "@/types";
+import { SUBSCRIPTION_LIMITS } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,12 +54,20 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
     const documentId = formData.get("documentId") as string | null;
     
+    // Translation options (only available for EXPLORER tier and above)
+    const enableTranslation = formData.get("enableTranslation") === "true";
+    const targetLanguage = formData.get("targetLanguage") as string | null;
+    const sourceLanguage = formData.get("sourceLanguage") as string | null;
+    
     console.log("📁 Request data:", {
       hasFile: !!file,
       fileName: file?.name,
       fileSize: file?.size,
       fileType: file?.type,
-      documentId: documentId
+      documentId: documentId,
+      enableTranslation: enableTranslation,
+      targetLanguage: targetLanguage,
+      sourceLanguage: sourceLanguage
     });
 
     if (!file && !documentId) {
@@ -67,6 +76,30 @@ export async function POST(req: NextRequest) {
         { error: "No file or document ID provided. Please select a file to analyze." },
         { status: 400 }
       );
+    }
+
+    // Check translation access - only available for EXPLORER tier and above
+    if (enableTranslation) {
+      const subscription = await prisma.subscription.findUnique({
+        where: { userId },
+      });
+      const tier = subscription?.tier || 'FREE';
+      const limits = SUBSCRIPTION_LIMITS[tier as keyof typeof SUBSCRIPTION_LIMITS];
+      
+      if (!limits?.translationEnabled) {
+        console.error("❌ Translation not available for tier:", tier);
+        return NextResponse.json(
+          { error: "Translation feature is available in Explorer plan and above. Please upgrade to access translation." },
+          { status: 402 }
+        );
+      }
+      
+      if (!targetLanguage) {
+        return NextResponse.json(
+          { error: "Target language is required for translation." },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate file upload if file is provided
@@ -116,16 +149,7 @@ export async function POST(req: NextRequest) {
       const storagePath = generateFilePath(userId, "documents", file.name);
       console.log("📁 Generated storage path:", storagePath);
 
-      // Upload file to Supabase storage
-      console.log("☁️ Uploading file to storage...");
-      const fileUrl = await uploadFileBuffer(storagePath, buffer, file.type, {
-        originalName: file.name,
-        userId: userId,
-        uploadType: 'document-analysis'
-      });
-      console.log("✅ File uploaded successfully:", fileUrl);
-
-      // Create document record with actual storage path
+      // Create document record first
       const savedDocument = await prisma.document.create({
         data: {
           userId,
@@ -140,16 +164,36 @@ export async function POST(req: NextRequest) {
       createdDocumentId = savedDocument.id;
       console.log("💾 Document record created:", savedDocument.id);
 
+      // Upload file to Supabase storage
+      console.log("☁️ Uploading file to storage...");
+      try {
+        const fileUrl = await uploadFileBuffer(storagePath, buffer, file.type, {
+          originalName: file.name,
+          userId: userId,
+          uploadType: 'document-analysis'
+        });
+        console.log("✅ File uploaded successfully:", fileUrl);
+      } catch (uploadError) {
+        // If upload fails, delete the document record
+        await prisma.document.delete({ where: { id: savedDocument.id } });
+        throw new Error(`File upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+      }
+
       // Analyze document with Claude
       console.log("🧠 Starting Claude analysis...");
-      analysis = await analyzeDocumentWithImage(buffer, userId);
+      analysis = await analyzeDocumentWithImage(buffer, userId, {
+        enableTranslation,
+        targetLanguage: targetLanguage || undefined,
+        sourceLanguage: sourceLanguage || undefined,
+      });
       console.log("✅ Claude analysis completed:", {
         namesFound: analysis.names?.length || 0,
         datesFound: analysis.dates?.length || 0,
         placesFound: analysis.places?.length || 0,
         eventsFound: analysis.events?.length || 0,
         hasDocumentType: !!analysis.documentType,
-        hasSummary: !!analysis.summary
+        hasSummary: !!analysis.summary,
+        hasTranslation: !!analysis.translation
       });
     } else if (documentId) {
       // Get OCR text from existing document
@@ -164,7 +208,11 @@ export async function POST(req: NextRequest) {
       }
       // For existing documents, fall back to text-based analysis
       const { analyzeDocument } = await import("@/lib/claude");
-      analysis = await analyzeDocument(document.ocrText ?? "", userId);
+      analysis = await analyzeDocument(document.ocrText ?? "", userId, {
+        enableTranslation,
+        targetLanguage: targetLanguage || undefined,
+        sourceLanguage: sourceLanguage || undefined,
+      });
     } else {
       return NextResponse.json(
         { error: "No file or document ID provided" },
@@ -175,7 +223,10 @@ export async function POST(req: NextRequest) {
     // Save analysis to database with document link
     const inputJson: JsonObject = { 
       imageAnalysis: !!file,
-      filename: file?.name || "existing document"
+      filename: file?.name || "existing document",
+      enableTranslation,
+      targetLanguage: targetLanguage || null,
+      sourceLanguage: sourceLanguage || null,
     };
     const resultJson = JSON.parse(JSON.stringify(analysis)) as JsonObject;
     const suggestionsJson: JsonArray = analysis.suggestions;

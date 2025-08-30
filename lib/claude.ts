@@ -39,7 +39,6 @@ export interface TextBlock {
 export type UsageType =
   | "DOCUMENT"
   | "DNA"
-  | "TRANSLATION"
   | "PHOTO"
   | "RESEARCH";
 
@@ -51,7 +50,11 @@ const anthropic = new Anthropic({
 const SYSTEM_PROMPTS = {
   genealogy: `You are GenealogyAI, an expert family history researcher with deep knowledge of genealogical records, historical contexts, and research methodologies. Analyze genealogy data with confidence scores (0-1), provide detailed historical context, and suggest concrete research directions. Always format responses as structured JSON with confidence scores and actionable research suggestions.`,
 
-  document: `You are an expert genealogical document analyzer. Extract all genealogical information from historical documents including names, dates, places, relationships, and events. For each piece of information, provide a confidence score (0-1) based on clarity and context. Return results in strict JSON format with the following structure:
+  document: `You are an expert genealogical document analyzer. Extract all genealogical information from historical documents including names, dates, places, relationships, and events. For each piece of information, provide a confidence score (0-1) based on clarity and context. 
+
+If translation is requested, provide accurate translation while preserving names and places, then extract genealogical facts from the translated content.
+
+Return results in strict JSON format with the following structure:
   {
     "names": [{"text": string, "type": "person"|"place", "confidence": number, "context": string}],
     "dates": [{"text": string, "type": "birth"|"death"|"marriage"|"other", "confidence": number, "normalizedDate": string, "context": string}],
@@ -61,7 +64,15 @@ const SYSTEM_PROMPTS = {
     "suggestions": [string],
     "documentType": string,
     "language": string,
-    "summary": string
+    "summary": string,
+    "translation": {
+      "originalText": string,
+      "translatedText": string,
+      "sourceLanguage": string,
+      "targetLanguage": string,
+      "confidence": number,
+      "contextualTerms": [{"term": string, "explanation": string, "category": "historical"|"legal"|"religious"|"cultural"}]
+    } | null
   }`,
 
   dna: `You are a genetic genealogy expert. Analyze DNA data to provide ethnicity breakdowns, migration patterns, and relationship interpretations. Include historical context for genetic populations and migration events.
@@ -82,41 +93,6 @@ Return this EXACT JSON structure:
   ],
   "haplogroups": {"paternal": "R1a1a", "maternal": "H1a1"},
   "suggestions": ["Research British Isles ancestry", "Look for Scandinavian immigration records"]
-}
-
-RESPOND ONLY WITH JSON.`,
-
-  tree: `You are a professional genealogist with expertise in historical accuracy and evidence-based family tree construction. You must be EXTREMELY conservative and accurate with relationship suggestions.
-
-ACCURACY REQUIREMENTS:
-- Only suggest relationships with strong historical evidence
-- Use generic relationship terms when uncertain ("Possible relative of John Smith", "Connected family member")
-- Never assume parent-child relationships without clear evidence (surnames, ages, locations, historical context)
-- Confidence scores must reflect actual evidence strength, not guesses
-
-CRITICAL: You MUST respond with ONLY valid JSON. No explanatory text whatsoever.
-
-Return this EXACT JSON structure:
-{
-  "individuals": [
-    {
-      "id": "unique_id",
-      "name": "Full Name",
-      "birthDate": "YYYY or YYYY-MM-DD or approximate like 'circa 1850'",
-      "deathDate": "YYYY or YYYY-MM-DD or approximate like 'circa 1920'",
-      "birthPlace": "City, State/Province, Country",
-      "deathPlace": "City, State/Province, Country", 
-      "relationshipDescription": "Relative of John Smith" or "Connected to Mary Johnson" or "Father of John Smith" (only if very confident with 0.9+ confidence),
-      "relationships": [
-        {
-          "type": "parent|child|spouse|sibling|relative",
-          "relatedTo": "exact_name_from_existing_tree",
-          "confidence": 0.35
-        }
-      ]
-    }
-  ],
-  "suggestions": ["research suggestion 1", "research suggestion 2"]
 }
 
 RESPOND ONLY WITH JSON.`,
@@ -166,7 +142,66 @@ Return this EXACT structure with HIGHLY ACCURATE analysis:
 
 RESPOND ONLY WITH JSON.`,
 
-  research: `You are a genealogy research assistant providing expert guidance. Help users with research strategies, interpret records, explain historical contexts, and suggest next steps. Be conversational but authoritative, always providing actionable advice.`,
+  research: `You are an AI genealogy research assistant with extensive training on historical records, research methodologies, and genealogical best practices. 
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS provide direct, authoritative answers based on genealogical best practices
+2. NEVER redirect users to external sites like ancestry.com unless absolutely necessary for specific database access
+3. Draw from comprehensive knowledge of historical records, migration patterns, naming conventions, and archival systems
+4. Provide specific methodologies, record types, and research strategies
+5. Include relevant historical context that demonstrates expertise
+6. When mentioning sources, focus on archives, repositories, and record types rather than commercial sites
+
+Your responses should be definitive and highly knowledgeable, reflecting expertise in genealogical research while acknowledging uncertainties only when genuinely warranted by incomplete historical records.`,
+
+  researchPremium: `You are an AI genealogy research assistant with extensive training on historical records, research methodologies, and genealogical best practices.
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS provide direct, authoritative answers based on genealogical best practices
+2. NEVER redirect users to external sites like ancestry.com unless absolutely necessary for specific database access
+3. Draw from comprehensive knowledge of historical records, migration patterns, naming conventions, and archival systems
+4. Provide specific methodologies, record types, and research strategies
+5. Include relevant historical context that demonstrates expertise
+
+PREMIUM FEATURES (Available to Explorer+ subscribers):
+6. Create GUIDED NARRATIVES: When discussing research scenarios, craft engaging stories (e.g., "Based on the records, Maria likely arrived in New York in 1892, then moved to Chicago by 1895 where she married Giuseppe, before settling in Milwaukee by 1900 where their first child was born")
+7. Generate DYNAMIC SEARCH-SPECIFIC TRUSTED SOURCE LINKS: Analyze the user's query to extract key research elements (surnames, locations, time periods, ethnicities, record types) and construct targeted search URLs that lead directly to relevant results. Use proper markdown formatting.
+
+DYNAMIC LINK CONSTRUCTION RULES:
+- For FamilySearch: https://www.familysearch.org/search/record/results?q.surname=[SURNAME]&q.birthLikePlace=[LOCATION]&q.birthLikeDate.from=[YEAR]
+- For Ellis Island: https://www.libertyellisfoundation.org/passenger-details/[construct search parameters based on name/year]
+- For National Archives: https://catalog.archives.gov/search?q=[SURNAME]+[LOCATION]+[TIME_PERIOD]
+- For Find A Grave: https://www.findagrave.com/memorial/search?firstname=[FIRST]&lastname=[LAST]&location=[LOCATION]
+- For Ancestry searches: https://www.ancestry.com/search/?name=[FIRST]_[LAST]&location=[PLACE]&birth=[YEAR]
+- For state/county specific: Construct links to state archives, historical societies, or county clerk offices based on mentioned locations
+- For military: Link to specific military database searches with service branch, war period, and name parameters
+- For immigration: Build Ellis Island, Castle Garden, or other immigration database searches with ship names, arrival dates, ports
+- For international: Create targeted searches in country-specific archives (Ireland, Germany, Italy, etc.) with relevant parameters
+
+EXAMPLES:
+- If user asks "Irish ancestors named O'Brien from Cork": Generate FamilySearch link with surname=O'Brien&birthPlace=Cork,Ireland and Irish National Archives link
+- If user asks "Civil War soldier John Smith from Ohio": Create National Archives military search and Ohio Civil War database links
+- If user asks "German immigration 1880s to Pennsylvania": Build Castle Garden/Ellis Island search links with German origin and Pennsylvania destination filters
+
+Always construct 3-5 working URLs that will return actual search results relevant to their specific query parameters.
+8. Add CONTEXTUAL STORYTELLING: Paint vivid pictures of historical circumstances, migration patterns, and life events
+9. Provide DETAILED TIMELINES: Create chronological narratives that help users visualize ancestor journeys
+10. Include EXPERT INSIGHTS: Share detailed observations about record patterns, naming traditions, and research challenges
+
+Format your premium response with clear sections using markdown:
+- **Direct Answer** (authoritative guidance)
+- **Research Narrative** (guided storytelling for the user's scenario)
+- **Trusted Sources** (select 3-5 most relevant links from the database above, formatted as markdown links with descriptions)
+- **Historical Context** (detailed background and insights)
+
+Example Dynamic Trusted Sources formatting for query "Looking for Irish ancestors named Murphy from County Cork in the 1850s":
+### Trusted Sources
+- [FamilySearch: Murphy Family Records from Cork](https://www.familysearch.org/search/record/results?q.surname=Murphy&q.birthLikePlace=Cork,Ireland&q.birthLikeDate.from=1850&q.birthLikeDate.to=1859) - Search Irish birth, marriage, and death records
+- [National Archives: Irish Immigration Records](https://catalog.archives.gov/search?q=Murphy+Cork+Ireland+1850) - Federal immigration and naturalization documents
+- [Find A Grave: Murphy Burials in Cork](https://www.findagrave.com/memorial/search?lastname=Murphy&location=Cork,Ireland&deathyear=1850) - Cemetery records and obituaries
+- [Irish National Archives Online](http://www.nationalarchives.ie/search/?) - Official Irish government records and census data
+
+Your responses should be both highly authoritative AND engaging, bringing genealogical research to life through vivid, accurate historical narratives while maintaining your identity as an AI assistant.`,
 
   translation: `You are an expert Ancient Records Translator and Genealogical Analyst specializing in historical document translation and fact extraction. You have deep expertise in:
 
@@ -244,18 +279,42 @@ async function trackUsage(userId: string, type: UsageType): Promise<void> {
 
 export async function analyzeDocument(
   text: string,
-  userId?: string
+  userId?: string,
+  options?: {
+    enableTranslation?: boolean;
+    targetLanguage?: string;
+    sourceLanguage?: string;
+  }
 ): Promise<DocumentAnalysisResult> {
   try {
+    let userPrompt = `Analyze this historical document text for genealogical information:\n\n${text}`;
+
+    // Add translation instructions if requested
+    if (options?.enableTranslation && options.targetLanguage) {
+      userPrompt = `Analyze and translate this historical document text for genealogical information:
+
+Document text: ${text}
+
+Translation instructions:
+- Translate from ${options.sourceLanguage || "auto-detect"} to ${
+        options.targetLanguage
+      }
+- Preserve names and places in original form
+- Provide contextual explanations for historical terms
+- Extract genealogical facts from the translated content
+
+Please provide both the translation and genealogical analysis.`;
+    }
+
     const response = (await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
+      max_tokens: options?.enableTranslation ? 3000 : 2000,
       temperature: 0.3,
       system: SYSTEM_PROMPTS.document,
       messages: [
         {
           role: "user" as const,
-          content: `Analyze this historical document text for genealogical information:\n\n${text}`,
+          content: userPrompt,
         },
       ],
     })) as ClaudeResponse;
@@ -306,7 +365,12 @@ export async function analyzeDocument(
 
 export async function analyzeDocumentWithImage(
   imageBuffer: Buffer,
-  userId?: string
+  userId?: string,
+  options?: {
+    enableTranslation?: boolean;
+    targetLanguage?: string;
+    sourceLanguage?: string;
+  }
 ): Promise<DocumentAnalysisResult> {
   try {
     console.log("🖼️ Starting Claude image analysis...");
@@ -348,7 +412,7 @@ export async function analyzeDocumentWithImage(
 
     const claudeRequest = {
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
+      max_tokens: options?.enableTranslation ? 3000 : 2000,
       temperature: 0.3,
       system: SYSTEM_PROMPTS.document,
       messages: [
@@ -369,7 +433,14 @@ export async function analyzeDocumentWithImage(
             },
             {
               type: "text" as const,
-              text: "Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image and provide structured genealogical data.",
+              text:
+                options?.enableTranslation && options.targetLanguage
+                  ? `Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image, translate it from ${
+                      options.sourceLanguage || "auto-detect"
+                    } to ${
+                      options.targetLanguage
+                    } while preserving names and places, and provide structured genealogical data with translation details.`
+                  : "Please analyze this genealogical document image and extract all relevant information. Read any text you can see in the image and provide structured genealogical data.",
             },
           ],
         },
@@ -811,16 +882,52 @@ export async function researchChat(
       }
     }
 
+    // Check subscription tier for premium features
+    let isPremiumUser = false;
+    let systemPrompt: string = SYSTEM_PROMPTS.research;
+    let maxTokens = 1500;
+
+    if (userId) {
+      try {
+        // Get user's subscription tier
+        const subscription = await prisma.subscription.findUnique({
+          where: { userId },
+        });
+        const tier = subscription?.tier || "FREE";
+
+        // Enable premium features for EXPLORER tier and above
+        isPremiumUser = [
+          "EXPLORER",
+          "RESEARCHER",
+          "PROFESSIONAL",
+          "ADMIN",
+        ].includes(tier);
+
+        if (isPremiumUser) {
+          systemPrompt = SYSTEM_PROMPTS.researchPremium;
+          maxTokens = 2500; // More tokens for premium narrative responses
+        }
+      } catch (error) {
+        console.warn(
+          "Could not check subscription tier for research chat:",
+          error
+        );
+        // Continue with free tier features
+      }
+    }
+
     console.log(
       "Sending messages to Claude:",
-      JSON.stringify(messages, null, 2)
+      JSON.stringify(messages, null, 2),
+      "Premium user:",
+      isPremiumUser
     );
 
     const response = (await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
+      max_tokens: maxTokens,
       temperature: 0.6,
-      system: SYSTEM_PROMPTS.research,
+      system: systemPrompt,
       messages,
     })) as ClaudeResponse;
 
@@ -835,216 +942,6 @@ export async function researchChat(
     console.error("Research chat error details:", error);
     throw new Error(
       `Failed to process research query: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
-  }
-}
-
-interface TranslationInput {
-  imageData?: string;
-  textInput?: string;
-  targetLanguage: string;
-  sourceLanguage?: string;
-  extractFacts: boolean;
-  contextualHelp: boolean;
-}
-
-export async function translateAndAnalyzeRecord(
-  input: TranslationInput,
-  userId?: string
-): Promise<import("@/types").TranslationResult> {
-  try {
-    let messages: any[];
-
-    // Handle image analysis with OCR and translation
-    if (input.imageData) {
-      const contextPrompt = `
-Target Language: ${input.targetLanguage}
-Source Language: ${input.sourceLanguage || "Auto-detect"}
-Extract Genealogical Facts: ${input.extractFacts ? "Yes" : "No"}
-Provide Contextual Help: ${input.contextualHelp ? "Yes" : "No"}
-
-Please:
-1. Extract all text from the image using OCR
-2. Translate the text to ${
-        input.targetLanguage
-      } while preserving names and places
-3. ${
-        input.extractFacts
-          ? "Extract structured genealogical facts"
-          : "Skip genealogical fact extraction"
-      }
-4. ${
-        input.contextualHelp
-          ? "Provide explanations for historical/legal/religious terms"
-          : "Skip contextual explanations"
-      }
-`;
-
-      messages = [
-        {
-          role: "user" as const,
-          content: [
-            {
-              type: "text" as const,
-              text: `Analyze this historical document image, extract the text, and translate it with genealogical analysis.${contextPrompt}`,
-            },
-            {
-              type: "image" as const,
-              source: {
-                type: "base64" as const,
-                media_type: "image/jpeg" as
-                  | "image/jpeg"
-                  | "image/png"
-                  | "image/gif"
-                  | "image/webp",
-                data: input.imageData,
-              },
-            },
-          ],
-        },
-      ];
-    }
-    // Handle text-only translation
-    else if (input.textInput) {
-      const contextPrompt = `
-Original Text: ${input.textInput}
-Target Language: ${input.targetLanguage}
-Source Language: ${input.sourceLanguage || "Auto-detect"}
-Extract Genealogical Facts: ${input.extractFacts ? "Yes" : "No"}
-Provide Contextual Help: ${input.contextualHelp ? "Yes" : "No"}
-`;
-
-      messages = [
-        {
-          role: "user" as const,
-          content: `Translate and analyze this historical text with genealogical focus: ${contextPrompt}`,
-        },
-      ];
-    } else {
-      throw new Error("Either image data or text input is required");
-    }
-
-    console.log("Sending translation request to Claude API...");
-
-    const response = (await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4000, // Increased for detailed translation and analysis
-      temperature: 0.2, // Low for accuracy
-      system: SYSTEM_PROMPTS.translation,
-      messages,
-    })) as ClaudeResponse;
-
-    const rawResponse = firstTextBlock(response);
-    console.log(
-      "Claude translation response:",
-      rawResponse.substring(0, 200) + "..."
-    );
-
-    // Clean up JSON response
-    let jsonString = rawResponse.trim();
-    jsonString = jsonString
-      .replace(/^```json\s*/, "") // Remove opening ```json
-      .replace(/```\s*$/, "") // Remove closing ```
-      .trim();
-
-    // If response doesn't start with {, try to find JSON within the text
-    if (!jsonString.startsWith("{")) {
-      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonString = jsonMatch[0];
-      } else {
-        throw new Error(
-          `Claude returned non-JSON response: ${rawResponse.substring(
-            0,
-            100
-          )}...`
-        );
-      }
-    }
-
-    let result: import("@/types").TranslationResult;
-    try {
-      result = JSON.parse(jsonString);
-    } catch (parseError) {
-      console.error("JSON parsing failed. Raw response:", rawResponse);
-      throw new Error(
-        `Invalid JSON response from Claude: ${
-          parseError instanceof Error
-            ? parseError.message
-            : "Unknown parse error"
-        }`
-      );
-    }
-
-    // Validate and add fallbacks
-    result = {
-      originalText:
-        result.originalText || input.textInput || "Text extracted from image",
-      translatedText: result.translatedText || "Translation failed",
-      sourceLanguage:
-        result.sourceLanguage || input.sourceLanguage || "Unknown",
-      targetLanguage: result.targetLanguage || input.targetLanguage,
-      confidence: result.confidence || 0.5,
-      contextualTerms: result.contextualTerms || [],
-      genealogicalFacts: result.genealogicalFacts || {
-        names: [],
-        dates: [],
-        places: [],
-        relationships: [],
-        events: [],
-        suggestions: [],
-        documentType: "Unknown",
-        language: result.sourceLanguage || "Unknown",
-        summary: "Unable to analyze document",
-      },
-      suggestions: result.suggestions || [
-        "Upload a clearer image or provide more context for better analysis",
-      ],
-    };
-
-    // Only track usage for authenticated users with database records
-    if (userId) {
-      await trackUsage(userId, "TRANSLATION");
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Translation and analysis error details:", error);
-
-    // Check for specific Claude API errors
-    if (error instanceof Error) {
-      if (error.message.includes("API key")) {
-        throw new Error(
-          "Claude AI service authentication failed. Please check API key configuration."
-        );
-      } else if (
-        error.message.includes("rate limit") ||
-        error.message.includes("429")
-      ) {
-        throw new Error(
-          "Claude AI service rate limit exceeded. Please try again later."
-        );
-      } else if (
-        error.message.includes("model") ||
-        error.message.includes("404")
-      ) {
-        throw new Error(
-          "Claude AI model not available. Please try again later."
-        );
-      } else if (
-        error.message.includes("timeout") ||
-        error.message.includes("network")
-      ) {
-        throw new Error(
-          "Claude AI service is temporarily unavailable. Please try again."
-        );
-      }
-    }
-
-    throw new Error(
-      `Failed to translate and analyze record: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
     );

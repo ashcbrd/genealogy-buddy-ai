@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     }, {} as Record<string, { used: number; limit: number | boolean; remaining: number }>);
 
     // Add missing tools with zero usage
-    const toolTypes: AnalysisType[] = ['DOCUMENT', 'DNA', 'TRANSLATION', 'PHOTO', 'RESEARCH'];
+    const toolTypes: AnalysisType[] = ['DOCUMENT', 'DNA', 'PHOTO', 'RESEARCH'];
     toolTypes.forEach(type => {
       const toolKey = type.toLowerCase().replace('_', '');
       if (!usageStats[toolKey]) {
@@ -73,14 +73,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Get translations count
-    const translationCount = await prisma.analysis.count({
-      where: { 
-        userId,
-        type: 'TRANSLATION',
-        deletedAt: null,
-      },
-    });
+    // Get translations count (disabled - TRANSLATION type removed)
+    const translationCount = 0;
 
     // Get photos count
     const photoCount = await prisma.photo.count({

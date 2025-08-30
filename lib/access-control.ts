@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { SUBSCRIPTION_LIMITS } from "@/types";
 import type { SubscriptionTier } from "@prisma/client";
 
-export type ToolKey = "documents" | "dna" | "translations" | "research" | "photos";
+export type ToolKey = "documents" | "dna" | "research" | "photos";
 
 export interface AccessControlResult {
   hasAccess: boolean;

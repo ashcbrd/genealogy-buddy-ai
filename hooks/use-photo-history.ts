@@ -50,11 +50,12 @@ interface PhotoHistoryResponse {
   };
 }
 
-interface SavedPhoto {
+export interface SavedPhoto {
   id: string;
   filename: string;
   uploadedAt: string;
   viewUrl?: string | null;
+  size: number;
   analysis?: PhotoAnalysis;
   notes?: string;
   tags?: string[];
@@ -90,6 +91,7 @@ export function usePhotoHistory() {
         filename: photo.filename,
         uploadedAt: photo.createdAt,
         viewUrl: photo.viewUrl,
+        size: photo.size,
         analysis: photo.analysis?.result as PhotoAnalysis | undefined,
         // TODO: Add notes and tags when implemented
         notes: undefined,

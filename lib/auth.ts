@@ -9,17 +9,47 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import * as bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { withRetry, withDatabaseOperation } from "./prisma";
 
-// Create a dedicated Prisma client for NextAuth
-// This prevents connection issues with the adapter
-const prismaForAuth = globalThis.prismaAuth ?? new PrismaClient({
-  log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
+// Helper function for consistent database URL resolution
+const getAuthDatabaseUrl = () => {
+  // In development, prefer DIRECT_URL to bypass pooler issues
+  if (process.env.NODE_ENV === "development") {
+    return process.env.DIRECT_URL || process.env.DATABASE_URL;
+  }
+  // In production, use DATABASE_URL (which should be the pooler URL)
+  return process.env.DATABASE_URL;
+};
+
+// Create a dedicated Prisma client for NextAuth with enhanced error handling
+function createAuthPrismaClient(): PrismaClient {
+  const client = new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    datasources: {
+      db: {
+        url: getAuthDatabaseUrl(),
+      },
     },
-  },
-});
+  });
+  
+  if (process.env.NODE_ENV === "development") {
+    console.log(`🔐 Creating auth Prisma client with URL: ${getAuthDatabaseUrl()?.replace(/:[^:]*@/, ':***@')}`);
+  }
+
+  return client;
+}
+
+const prismaForAuth = (() => {
+  if (process.env.NODE_ENV === "production") {
+    return createAuthPrismaClient();
+  }
+
+  if (!globalThis.prismaAuth) {
+    globalThis.prismaAuth = createAuthPrismaClient();
+  }
+  
+  return globalThis.prismaAuth;
+})();
 
 if (process.env.NODE_ENV !== "production") {
   globalThis.prismaAuth = prismaForAuth;
@@ -78,8 +108,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
-        const user = await prismaForAuth.user.findUnique({
-          where: { email: credentials.email },
+        const user = await withDatabaseOperation(async () => {
+          return await prismaForAuth.user.findUnique({
+            where: { email: credentials.email },
+          });
+        }, "credentials user lookup").catch((error) => {
+          console.error("Database unavailable during login:", error.message);
+          throw new Error("Authentication service temporarily unavailable. Please try again later.");
         });
 
         if (!user || !user.password) {
@@ -120,9 +155,14 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
         try {
-          // Check if user already exists
-          const existingUser = await prismaForAuth.user.findUnique({
-            where: { email: user.email! },
+          // Check if user already exists with graceful fallback
+          const existingUser = await withDatabaseOperation(async () => {
+            return await prismaForAuth.user.findUnique({
+              where: { email: user.email! },
+            });
+          }, "Google sign-in user lookup").catch((error) => {
+            console.warn("⚠️ Database unavailable during Google sign-in, allowing authentication:", error.message);
+            return null; // Allow sign-in to proceed even if DB is unavailable
           });
 
           if (existingUser) {
@@ -131,15 +171,20 @@ export const authOptions: NextAuthOptions = {
             const firstName = nameParts[0] || null;
             const lastName = nameParts.slice(1).join(" ") || null;
 
-            await prismaForAuth.user.update({
-              where: { id: existingUser.id },
-              data: {
-                name: existingUser.name || user.name,
-                firstName: existingUser.firstName || firstName,
-                lastName: existingUser.lastName || lastName,
-                image: existingUser.image || user.image,
-                provider: "google",
-              },
+            await withDatabaseOperation(async () => {
+              return await prismaForAuth.user.update({
+                where: { id: existingUser.id },
+                data: {
+                  name: existingUser.name || user.name,
+                  firstName: existingUser.firstName || firstName,
+                  lastName: existingUser.lastName || lastName,
+                  image: existingUser.image || user.image,
+                  provider: "google",
+                },
+              });
+            }, "Google sign-in user update").catch((error) => {
+              console.warn("⚠️ Failed to update user profile, continuing with sign-in:", error.message);
+              // Continue with sign-in even if update fails
             });
           }
           return true;
@@ -160,16 +205,22 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token?.sub) {
         session.user.id = token.sub;
         
-        // Fetch additional user data from database
-        const dbUser = await prismaForAuth.user.findUnique({
-          where: { id: token.sub },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            provider: true,
-          },
+        // Fetch additional user data from database with graceful fallback
+        const dbUser = await withDatabaseOperation(async () => {
+          return await prismaForAuth.user.findUnique({
+            where: { id: token.sub },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+              provider: true,
+            },
+          });
+        }, "session user data fetch").catch((error) => {
+          // Log the error but don't fail the session
+          console.warn("⚠️ Database unavailable for session, using token data:", error.message);
+          return null; // Graceful fallback - use token data instead
         });
 
         if (dbUser) {
@@ -179,6 +230,15 @@ export const authOptions: NextAuthOptions = {
             name: dbUser.name,
             email: dbUser.email!,
             image: dbUser.image,
+          };
+        } else {
+          // Fallback: use token data when database is unavailable
+          session.user = {
+            ...session.user,
+            id: token.sub,
+            name: session.user.name || token.name as string,
+            email: session.user.email || token.email as string,
+            image: session.user.image || token.picture as string,
           };
         }
       }
@@ -191,10 +251,15 @@ export const authOptions: NextAuthOptions = {
         // Handle new Google users - populate additional profile fields
         if (account?.provider === "google") {
           try {
-            // Check if this user needs profile fields populated
-            const dbUser = await prismaForAuth.user.findUnique({
-              where: { id: user.id },
-              select: { firstName: true, lastName: true, provider: true },
+            // Check if this user needs profile fields populated with graceful fallback
+            const dbUser = await withDatabaseOperation(async () => {
+              return await prismaForAuth.user.findUnique({
+                where: { id: user.id },
+                select: { firstName: true, lastName: true, provider: true },
+              });
+            }, "JWT user profile check").catch((error) => {
+              console.warn("⚠️ Database unavailable for JWT callback, skipping profile update:", error.message);
+              return null;
             });
             
             // If user doesn't have firstName/lastName or provider set, update them
@@ -203,13 +268,18 @@ export const authOptions: NextAuthOptions = {
               const firstName = nameParts[0] || null;
               const lastName = nameParts.slice(1).join(" ") || null;
 
-              await prismaForAuth.user.update({
-                where: { id: user.id },
-                data: {
-                  firstName,
-                  lastName,
-                  provider: "google",
-                },
+              await withDatabaseOperation(async () => {
+                return await prismaForAuth.user.update({
+                  where: { id: user.id },
+                  data: {
+                    firstName,
+                    lastName,
+                    provider: "google",
+                  },
+                });
+              }, "JWT user profile update").catch((error) => {
+                console.warn("⚠️ Failed to update user profile in JWT callback, continuing:", error.message);
+                // Continue with JWT processing even if update fails
               });
             }
           } catch (error) {

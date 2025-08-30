@@ -57,7 +57,6 @@ import { useUsageData } from "@/hooks/use-user-status";
 const TOOL_COLORS = {
   documents: "var(--chart-1)",
   dna: "var(--chart-5)",
-  translations: "var(--chart-2)",
   photos: "var(--chart-3)",
   research: "var(--chart-4)",
 } as const;
@@ -67,7 +66,6 @@ export default function DashboardPage() {
   const { data: usageData } = useUsageData();
   const [stats, setStats] = useState<DashboardStats>({
     documentsAnalyzed: 0,
-    translationsCompleted: 0,
     dnaAnalyses: 0,
     photosEnhanced: 0,
     researchQuestions: 0,
@@ -117,7 +115,6 @@ export default function DashboardPage() {
       color: TOOL_COLORS.documents,
     },
     { name: "DNA", value: stats?.dnaAnalyses ?? 0, color: TOOL_COLORS.dna },
-    { name: "Translations", value: stats?.translationsCompleted ?? 0, color: TOOL_COLORS.translations },
     {
       name: "Photos",
       value: stats?.photosEnhanced ?? 0,
@@ -171,16 +168,6 @@ export default function DashboardPage() {
       tone: TOOL_COLORS.dna,
       used: usageData?.usage?.dna?.used ?? 0,
       limit: usageData?.usage?.dna?.limit ?? 0,
-    },
-    {
-      key: "translations",
-      href: "/tools/ancient-records-translator",
-      title: "Records Translator",
-      description: "Translate historical documents",
-      icon: <TreePine className="w-4 h-4" />,
-      tone: TOOL_COLORS.translations,
-      used: usageData?.usage?.translations?.used ?? 0,
-      limit: usageData?.usage?.translations?.limit ?? 1,
     },
     {
       key: "research",
@@ -256,10 +243,10 @@ export default function DashboardPage() {
             accent="text-purple-600"
           />
           <KpiCard
-            title="Research Trees"
-            value={stats?.translationsCompleted ?? 0}
-            icon={<TreePine className="w-4 h-4" />}
-            accent="text-green-600"
+            title="Research Questions"
+            value={stats?.researchQuestions ?? 0}
+            icon={<MessageCircle className="w-4 h-4" />}
+            accent="text-blue-600"
           />
           <KpiCard
             title="Photos"
@@ -318,13 +305,6 @@ export default function DashboardPage() {
                   barColor="bg-purple-500"
                 />
                 <UsageCapsule
-                  label="Translations"
-                  used={usageData?.usage?.translations?.used ?? 0}
-                  limit={usageData?.usage?.translations?.limit ?? 1}
-                  icon={<TreePine className="w-4 h-4" />}
-                  barColor="bg-green-500"
-                />
-                <UsageCapsule
                   label="Photo Analyses"
                   used={usageData?.usage?.photos?.used ?? 0}
                   limit={usageData?.usage?.photos?.limit ?? 0}
@@ -373,13 +353,6 @@ export default function DashboardPage() {
                         stroke={TOOL_COLORS.dna}
                         strokeWidth={2}
                         name="DNA"
-                        type="monotone"
-                      />
-                      <Line
-                        dataKey="translations"
-                        stroke={TOOL_COLORS.translations}
-                        strokeWidth={2}
-                        name="Translations"
                         type="monotone"
                       />
                       <Line
@@ -825,7 +798,6 @@ function iconFor(type: RecentActivity["type"]) {
   const map = {
     document: <FileText className="w-4 h-4" />,
     dna: <Dna className="w-4 h-4" />,
-    translation: <TreePine className="w-4 h-4" />,
     research: <MessageCircle className="w-4 h-4" />,
     photo: <Camera className="w-4 h-4" />,
   };
@@ -835,7 +807,6 @@ function iconColor(type: RecentActivity["type"]) {
   const map = {
     document: "text-[var(--chart-1)]",
     dna: "text-[var(--lineage-dna)]",
-    translation: "text-[var(--lineage-birth)]",
     research: "text-[var(--chart-4)]",
     photo: "text-[var(--chart-3)]",
   } as const;
